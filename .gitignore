@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Virtual environment
+.venv/
+
 # Environment variables
 .env
 
@@ -13,6 +16,14 @@ data/indexes/
 *.db
 *.index
 *.npy
+*.pkl
+
+# Test artifacts
+data/indexes/test_*
 
 # Logs
 *.log
+
+# IDE
+.vscode/
+.idea/

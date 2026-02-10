@@ -1,0 +1,19 @@
+# ============================================
+# Dependencias del Proyecto RAG Financiero
+# ============================================
+# Instalar con: pip install -r requirements.txt
+
+# --- Core RAG ---
+faiss-cpu>=1.7.0          # Motor de búsqueda vectorial (Facebook Research)
+sentence-transformers>=2.0 # Modelo de embeddings (all-MiniLM-L6-v2)
+numpy>=1.24               # Operaciones con arrays/vectores
+
+# --- LLM (Groq API) ---
+requests>=2.28             # Llamadas HTTP a la API de Groq
+
+# --- Utilidades ---
+python-dotenv>=1.0         # Cargar variables de entorno desde .env
+tqdm>=4.60                 # Barras de progreso
+
+# --- Datos (Kaggle) ---
+kaggle>=1.5                # Descarga de datasets desde Kaggle
