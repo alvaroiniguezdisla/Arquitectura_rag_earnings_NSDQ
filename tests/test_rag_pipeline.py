@@ -7,8 +7,8 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.retriever import Retriever
-from src.rag.llm_groq import GroqLLM
+from src.rag.retrieval.retriever import Retriever
+from src.rag.generation.llm_groq import GroqLLM
 
 
 def test_rag_pipeline():

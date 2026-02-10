@@ -7,7 +7,7 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.embeddings import EmbeddingModel
+from src.rag.pipeline.step3_embedding import EmbeddingModel
 
 if __name__ == "__main__":
     print("=== Test de Embeddings ===\n")

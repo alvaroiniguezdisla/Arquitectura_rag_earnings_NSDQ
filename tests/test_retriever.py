@@ -7,7 +7,7 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.retriever import Retriever
+from src.rag.retrieval.retriever import Retriever
 
 if __name__ == "__main__":
     print("=== Test de Retriever (Búsqueda Semántica) ===\n")

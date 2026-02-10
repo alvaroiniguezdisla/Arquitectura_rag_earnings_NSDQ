@@ -7,8 +7,8 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.ingest import load_processed_corpus
-from src.rag.chunking import chunk_documents
+from src.rag.pipeline.step1_loader import load_processed_corpus
+from src.rag.pipeline.step2_chunking import chunk_documents
 
 if __name__ == "__main__":
     print("=== Test de Chunking ===\n")

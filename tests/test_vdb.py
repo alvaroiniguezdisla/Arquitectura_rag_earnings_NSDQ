@@ -7,10 +7,10 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.schema import Chunk
-from src.rag.vdb_sqlite import MetadataDB
-from src.rag.vdb_faiss import VectorDB
-from src.rag.embeddings import EmbeddingModel
+from src.rag.core.schema import Chunk
+from src.rag.storage.metadata_store import MetadataDB
+from src.rag.storage.vector_store import VectorDB
+from src.rag.pipeline.step3_embedding import EmbeddingModel
 
 if __name__ == "__main__":
     print("=== Test de Bases de Datos (SQLite + FAISS) ===\n")

@@ -2,7 +2,7 @@ from typing import List
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from src.rag.config import EMBEDDING_MODEL_NAME
+from src.rag.core.config import EMBEDDING_MODEL_NAME
 
 
 class EmbeddingModel:

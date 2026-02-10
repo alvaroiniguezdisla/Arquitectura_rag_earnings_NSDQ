@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import json
 
-from src.rag.schema import Chunk
-from src.rag.config import SQLITE_DB_PATH
+from src.rag.core.schema import Chunk
+from src.rag.core.config import SQLITE_DB_PATH
 
 
 class MetadataDB:

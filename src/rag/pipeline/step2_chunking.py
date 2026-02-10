@@ -1,8 +1,8 @@
 import hashlib
 from typing import List
 
-from src.rag.schema import Document, Chunk
-from src.rag.config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.rag.core.schema import Document, Chunk
+from src.rag.core.config import CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def chunk_documents(documents: List[Document], chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[Chunk]:

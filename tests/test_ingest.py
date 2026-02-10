@@ -7,7 +7,7 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.ingest import load_processed_corpus
+from src.rag.pipeline.step1_loader import load_processed_corpus
 
 if __name__ == "__main__":
     print("=== Test de Ingesta ===\n")

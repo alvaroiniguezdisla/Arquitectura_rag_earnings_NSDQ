@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 import pickle
 
-from src.rag.config import FAISS_INDEX_PATH
+from src.rag.core.config import FAISS_INDEX_PATH
 
 
 class VectorDB:

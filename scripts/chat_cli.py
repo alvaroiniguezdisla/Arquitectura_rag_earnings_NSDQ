@@ -1,5 +1,5 @@
 """
-Chat CLI - Interfaz de línea de comandos para el asistente RAG.
+Chat CLI - Interfaz de línea de comandos para el asistente RAG (con Tool Calling).
 """
 import sys
 from pathlib import Path
@@ -7,8 +7,7 @@ from pathlib import Path
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.retriever import Retriever
-from src.rag.llm_groq import GroqLLM
+from src.rag.generation.llm_groq import GroqLLM
 
 
 def print_banner():
@@ -16,9 +15,8 @@ def print_banner():
     banner = """
 ╔══════════════════════════════════════════════════════════════╗
 ║        💼 Asistente Financiero RAG - Earnings Calls         ║
-║                                                              ║
 ║  Dataset: NASDAQ 2019-2020 Earnings Call Transcripts        ║
-║  Modelo: Llama 3.1 (vía Groq API)                          ║
+║  Modelo: Llama 3.3 (vía Groq API) + Tool Calling           ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Comandos:
@@ -37,38 +35,25 @@ def print_help():
   - ¿Cuáles fueron los ingresos de Apple en 2020?
   - ¿Qué dijo el CEO de Google sobre publicidad?
   - Resume la estrategia de Microsoft
-  - ¿Qué empresas mencionaron COVID-19?
+  - Hola, ¿quién eres? (pregunta general, no debería buscar)
     """
     print(help_text)
-
-
-def format_sources(chunks):
-    """Formatea las fuentes recuperadas."""
-    sources_text = "\n📚 Fuentes consultadas:\n"
-    for i, chunk in enumerate(chunks, 1):
-        company = chunk.metadata.get("company", "Unknown")
-        year = chunk.metadata.get("year", "Unknown")
-        score = chunk.score
-        sources_text += f"   [{i}] {company} - {year} (relevancia: {score:.2f})\n"
-    return sources_text
 
 
 def main():
     """Loop principal del chat."""
     print_banner()
     
-    # Inicializar sistema RAG
-    print("🔄 Inicializando sistema RAG...")
+    # Inicializar solo el LLM (el retriever se inicializa dentro del ToolManager si hace falta)
+    print("🔄 Inicializando sistema (LLM + Tools)...")
     
     try:
-        retriever = Retriever()
         llm = GroqLLM()
-        print("✅ Sistema listo\n")
+        print("✅ Sistema listo. ¡Pregúntame!\n")
     except Exception as e:
         print(f"❌ Error al inicializar: {e}")
         print("\n💡 Asegúrate de:")
         print("   1. Tener GROQ_API_KEY en el archivo .env")
-        print("   2. Haber ejecutado scripts/build_index.py")
         return
     
     # Loop principal
@@ -89,16 +74,9 @@ def main():
                 print_help()
                 continue
             
-            # Procesar pregunta
-            print("\n🔍 Buscando información relevante...")
-            retrieved_chunks = retriever.search(query, top_k=5)
-            
-            if not retrieved_chunks:
-                print("❌ No encontré información relevante en la base de datos.")
-                continue
-            
-            print("🤖 Generando respuesta...")
-            response = llm.generate_response(query, retrieved_chunks)
+            # Procesar pregunta con Tool Calling
+            print("\n🤖 Pensando... (tu asistente decidirá si buscar info o responder directo)")
+            response = llm.chat_with_tools(query)
             
             # Mostrar respuesta
             print("\n" + "=" * 70)
@@ -106,9 +84,6 @@ def main():
             print("-" * 70)
             print(response)
             print("=" * 70)
-            
-            # Mostrar fuentes
-            print(format_sources(retrieved_chunks))
             
         except KeyboardInterrupt:
             print("\n\n👋 ¡Hasta luego!")

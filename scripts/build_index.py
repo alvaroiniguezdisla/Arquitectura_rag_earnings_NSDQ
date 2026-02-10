@@ -9,16 +9,14 @@ import time
 # Agregar el proyecto al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.config import (
+from src.rag.core.config import (
     CORPUS_FILE, CHUNK_SIZE, CHUNK_OVERLAP, 
     SQLITE_DB_PATH, FAISS_INDEX_PATH, EMBEDDING_MODEL_NAME,
     EMBEDDING_DIMENSION, BATCH_SIZE
 )
-from src.rag.ingest import load_processed_corpus
-from src.rag.chunking import chunk_documents
-from src.rag.embeddings import EmbeddingModel
-from src.rag.vdb_sqlite import MetadataDB
-from src.rag.vdb_faiss import VectorDB
+from src.rag.pipeline.step1_loader import load_processed_corpus
+from src.rag.pipeline.step2_chunking import chunk_documents
+from src.rag.pipeline.step3_embedding import EmbeddingModel
 
 
 def build_index():
@@ -51,43 +49,15 @@ def build_index():
     print(f"   ✅ Generados {len(chunks)} chunks")
     print(f"   📊 Promedio: {len(chunks) / len(documents):.1f} chunks por documento")
     
-    # Paso 3: Inicializar bases de datos
-    print(f"\n🗄️  [3/5] Inicializando bases de datos")
-    print(f"   - SQLite: {SQLITE_DB_PATH}")
-    print(f"   - FAISS: {FAISS_INDEX_PATH}")
-    
-    meta_db = MetadataDB(SQLITE_DB_PATH)
-    vector_db = VectorDB(FAISS_INDEX_PATH, dimension=EMBEDDING_DIMENSION)
-    
-    # Paso 4: Embeddings e Indexado
-    print(f"\n🔢 [4/5] Generando embeddings e indexando")
+
+    # Paso 3: Inicializar Modelo de Embedding
+    print(f"\n🧠 [3/4] Cargando Modelo de Embedding")
     print(f"   Modelo: {EMBEDDING_MODEL_NAME}")
-    
     embed_model = EmbeddingModel(EMBEDDING_MODEL_NAME)
     
-    # Procesar en batches para no saturar la RAM
-    total_batches = (len(chunks) + BATCH_SIZE - 1) // BATCH_SIZE
-    
-    print(f"   Procesando {len(chunks)} chunks en {total_batches} batches...")
-    
-    from tqdm import tqdm
-    for i in tqdm(range(0, len(chunks), BATCH_SIZE), desc="   Indexing"):
-        batch_chunks = chunks[i : i + BATCH_SIZE]
-        batch_texts = [c.text for c in batch_chunks]
-        batch_ids = [c.chunk_id for c in batch_chunks]
-        
-        # Generar embeddings
-        embeddings = embed_model.embed_texts(batch_texts)
-        
-        # Guardar en SQLite (metadata + texto)
-        meta_db.upsert_chunks(batch_chunks)
-        
-        # Guardar en FAISS (vectores)
-        vector_db.add_vectors(embeddings, batch_ids)
-    
-    # Paso 5: Persistir índice FAISS
-    print(f"\n💾 [5/5] Guardando índice FAISS en disco")
-    vector_db.save_index()
+    # Paso 4: Indexado (Storage)
+    from src.rag.pipeline.step4_indexing import index_data
+    index_data(chunks, embed_model)
     
     # Resumen final
     elapsed = time.time() - start_time
@@ -95,13 +65,6 @@ def build_index():
     print("✅ INDEXACIÓN COMPLETADA")
     print("=" * 60)
     print(f"⏱️  Tiempo total: {elapsed:.2f} segundos")
-    print(f"📄 Documentos indexados: {len(documents)}")
-    print(f"🔪 Chunks creados: {len(chunks)}")
-    print(f"🗄️  SQLite chunks: {meta_db.count_chunks()}")
-    print(f"🔢 FAISS vectores: {vector_db.count()}")
-    print(f"\n📂 Archivos creados:")
-    print(f"   - {SQLITE_DB_PATH}")
-    print(f"   - {FAISS_INDEX_PATH}")
     print("\n🎉 ¡Listo para hacer búsquedas!")
 
 

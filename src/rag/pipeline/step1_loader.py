@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 from typing import List
 
-from src.rag.schema import Document
-from src.rag.config import CORPUS_FILE
+from src.rag.core.schema import Document
+from src.rag.core.config import CORPUS_FILE
 
 
 def load_processed_corpus(corpus_path: Path = CORPUS_FILE) -> List[Document]:
