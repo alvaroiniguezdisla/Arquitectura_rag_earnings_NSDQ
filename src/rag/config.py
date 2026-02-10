@@ -26,8 +26,19 @@ TOP_K = 8
 
 # Modelo de Embeddings (Local y rápido)
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+# Dimensión de los vectores del modelo de embeddings
+EMBEDDING_DIMENSION = 384
 
-# Modelo LLM (Ruta local o nombre)
-# Ajusta esto a donde tengas tu modelo .gguf
-# Ejemplo: "models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
-MODEL_PATH = os.getenv("MODEL_PATH", "models/tinyllama.gguf")
+# Modelo LLM (Groq API)
+# Llama 3.3 70B Versatile - sucesor de llama3-70b-8192 (deprecado por Groq)
+LLM_MODEL_NAME = "llama-3.3-70b-versatile"
+# Temperatura para la generación (0-1, menor = más conservador)
+LLM_TEMPERATURE = 0.3
+# Máximo de tokens en la respuesta
+LLM_MAX_TOKENS = 512
+
+# Procesamiento por lotes (batching)
+# Tamaño de batch para generar embeddings (evita saturar RAM)
+BATCH_SIZE = 64
+
+
