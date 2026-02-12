@@ -4,7 +4,6 @@
 # Instalar con: pip install -r requirements.txt
 
 # --- Core RAG ---
-faiss-cpu>=1.7.0          # Motor de búsqueda vectorial (Facebook Research)
 sentence-transformers>=2.0 # Modelo de embeddings (all-MiniLM-L6-v2)
 numpy>=1.24               # Operaciones con arrays/vectores
 

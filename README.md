@@ -1,79 +1,72 @@
-# 💼 RAG Earnings NSDQ - Asistente Financiero Inteligente
+# RAG Earnings NSDQ - Asistente Financiero Inteligente
 
-![Banner](https://img.shields.io/badge/RAG-Financial_Analysis-blue?style=for-the-badge) ![Groq](https://img.shields.io/badge/LLM-Llama_3.3_70B-orange?style=for-the-badge) ![FAISS](https://img.shields.io/badge/Vector_DB-FAISS-green?style=for-the-badge)
-
-Sistema de **Retrieval-Augmented Generation (RAG)** agéntico diseñado para analizar transcripts de conferencias de resultados financieros (Earnings Calls) de empresas del NASDAQ (2019-2020). 
+Sistema de **Retrieval-Augmented Generation (RAG)** agéntico para analizar transcripts de earnings calls del NASDAQ (2019-2020).
 
 ---
 
-## 🌟 Características Principales
+## Caracteristicas Principales
 
-*   **🧠 Agente Autónomo**: El sistema decide inteligentemente cuándo consultar la base de datos financiera y cuándo responder directamente.
-*   **🔍 Recuperación Optimizada**:
-    *   **Metadata Boost**: Prioriza automáticamente los resultados del año y trimestre mencionados en tu pregunta.
-    *   **Ticker Mapping**: Traduce nombres de empresas (ej: "Microsoft") a sus símbolos (MSFT) para búsquedas ultra-precisas.
-    *   **Búsqueda Semántica**: Motor FAISS + All-MiniLM-L6 para entender el contexto, no solo palabras clave.
-*   **📊 Transparencia Total**: El chat muestra qué herramientas está usando y cuánta información está recuperando en "tiempo real".
+*   **Agente Autonomo**: El sistema decide cuando consultar la base de datos financiera y cuando responder directamente.
+*   **Recuperacion Optimizada**:
+    *   **Metadata Boost**: Prioriza resultados del anno y trimestre mencionados.
+    *   **Ticker Mapping**: Traduce nombres de empresas (ej: "Microsoft") a sus simbolos (MSFT).
+    *   **Busqueda Semantica**: All-MiniLM-L6 + SQLite con vectores como BLOBs.
+*   **Transparencia Total**: El chat muestra que herramientas esta usando en tiempo real.
 
 ---
 
-## 🛠️ Instalación Rápida
+## Instalacion Rapida
 
 ### 1. Preparar el Entorno
 ```bash
-# Crear entorno virtual
 python -m venv .venv
-# Activar (Windows)
-.venv\Scripts\activate
-# Instalar dependencias
+.venv\Scripts\activate       # Windows
 pip install -r requirements.txt
 ```
 
-### 2. Configuración (.env)
-Configura tu API Key en la raíz del proyecto:
+### 2. Configuracion (.env)
 ```env
 GROQ_API_KEY=tu_gsk_clave_aqui
 ```
 
 ---
 
-## 🏗️ Cómo Empezar
+## Como Empezar
 
-### Paso 1: Indexación (Construir el Cerebro)
-Procesa los transcripts originales y crea las bases de datos vectoriales y de metadatos.
+### Paso 1: Indexacion (Construir la BD)
+Procesa los transcripts y crea la base de datos unificada.
 ```bash
-python scripts/build_index.py
+python scripts/run_full_indexing.py
 ```
 
 ### Paso 2: Ejecutar el Chat
-Lanza la interfaz interactiva para hablar con el asistente.
 ```bash
 python scripts/chat_cli.py
 ```
 
 ---
 
-## 💡 Ejemplos de Preguntas
+## Ejemplos de Preguntas
 
-*   **Básica**: "¿Cuáles fueron los ingresos de Apple en el Q4 de 2019?"
-*   **Estrategia**: "¿Qué dijo el CEO de NVIDIA sobre la demanda de chips en 2020?"
-*   **Meta**: "¿De qué empresas tienes información disponible?" (Usa la herramienta `list_available_companies`).
+*   **Basica**: "Cuales fueron los ingresos de Apple en el Q4 de 2019?"
+*   **Estrategia**: "Que dijo el CEO de NVIDIA sobre la demanda de chips en 2020?"
+*   **Meta**: "De que empresas tienes informacion disponible?"
 
 ---
 
-## 📂 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```text
 src/rag/
-├── generation/    # 🧠 Cerebro: Llama 3.3, Tools y prompts
-├── retrieval/     # 🔍 Lupa: Lógica de búsqueda avanzada y boost
-├── storage/       # 💾 Memoria: FAISS (vectores) y SQLite (textos)
-├── pipeline/      # 🏭 Fábrica: Loader, Chunking y Embedding
-└── core/          # ⚙️ Motor: Configuración y esquemas
+  core/          # Configuracion y esquemas
+  pipeline/      # ETL: Loader, Chunking, Embedding, Indexing
+  storage/       # BD unificada SQLite (texto + metadata + vectores)
+  retrieval/     # Motor de busqueda semantica
+  generation/    # LLM Groq + Tool Calling
 ```
 
 ---
 
-## 📄 Documentación Extendida
-- [🏗️ Arquitectura Detallada](docs/architecture.md)
-- [📅 Roadmap del Proyecto](docs/project_roadmap.md)
+## Documentacion Extendida
+- [Arquitectura Detallada](docs/architecture.md)
+- [Fases del RAG](docs/fases_rag.md)

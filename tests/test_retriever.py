@@ -10,29 +10,29 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.rag.retrieval.retriever import Retriever
 
 if __name__ == "__main__":
-    print("=== Test de Retriever (Búsqueda Semántica) ===\n")
+    print("=== Test de Retriever (Busqueda Semantica) ===\n")
     
     # Inicializar retriever
     retriever = Retriever()
     
     # Preguntas de prueba
     queries = [
-        "¿Cuáles fueron los ingresos de Apple en 2020?",
-        "¿Qué dijo Google sobre publicidad?",
+        "Cuales fueron los ingresos de Apple en 2020?",
+        "Que dijo Google sobre publicidad?",
         "Estrategia de crecimiento de Microsoft"
     ]
     
     print("\n" + "=" * 70)
     
     for i, query in enumerate(queries, 1):
-        print(f"\n🔍 Query {i}: '{query}'")
+        print(f"\nQuery {i}: '{query}'")
         print("-" * 70)
         
         # Buscar
         results = retriever.search(query, top_k=3)
         
         if not results:
-            print("   ❌ No se encontraron resultados")
+            print("   No se encontraron resultados")
             continue
         
         # Mostrar resultados
@@ -41,4 +41,4 @@ if __name__ == "__main__":
             print(f"       Texto: {chunk.text[:150]}...")
     
     print("\n" + "=" * 70)
-    print("\n✅ Test completado exitosamente")
+    print("\nOK Test completado exitosamente")

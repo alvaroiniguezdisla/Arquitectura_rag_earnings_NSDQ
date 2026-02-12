@@ -8,16 +8,17 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.rag.generation.llm_groq import GroqLLM
+from src.rag.core.memory import MemoryManager
 
 
 def print_banner():
     """Muestra el banner de bienvenida."""
     banner = """
-╔══════════════════════════════════════════════════════════════╗
-║        💼 Asistente Financiero RAG - Earnings Calls         ║
-║  Dataset: NASDAQ 2019-2020 Earnings Call Transcripts        ║
-║  Modelo: Llama 3.3 (vía Groq API) + Tool Calling           ║
-╚══════════════════════════════════════════════════════════════╝
+==============================================================
+        Asistente Financiero RAG - Earnings Calls         
+  Dataset: NASDAQ 2019-2020 Earnings Call Transcripts        
+  Modelo: Llama 3.3 (via Groq API) + Tool Calling           
+==============================================================
 
 Comandos:
   - Escribe tu pregunta y presiona Enter
@@ -31,11 +32,11 @@ Comandos:
 def print_help():
     """Muestra ayuda."""
     help_text = """
-📚 Ejemplos de preguntas:
-  - ¿Cuáles fueron los ingresos de Apple en 2020?
-  - ¿Qué dijo el CEO de Google sobre publicidad?
+ Ejemplos de preguntas:
+  - Cuales fueron los ingresos de Apple en 2020?
+  - Que dijo el CEO de Google sobre publicidad?
   - Resume la estrategia de Microsoft
-  - Hola, ¿quién eres? (pregunta general, no debería buscar)
+  - Hola, quien eres? (pregunta general, no deberia buscar)
     """
     print(help_text)
 
@@ -44,15 +45,20 @@ def main():
     """Loop principal del chat."""
     print_banner()
     
-    # Inicializar solo el LLM (el retriever se inicializa dentro del ToolManager si hace falta)
-    print("🔄 Inicializando sistema (LLM + Tools)...")
+    # Inicializar Componentes
+    print(">> Inicializando sistema (LLM + Tools + Memoria)...")
     
     try:
+        # 1. Creamos la memoria
+        memory = MemoryManager(limit=10) # Recuerda los ultimos 10 mensajes
+        
+        # 2. Creamos el LLM
         llm = GroqLLM()
-        print("✅ Sistema listo. ¡Pregúntame!\n")
+        
+        print("OK Sistema listo. Preguntame!\n")
     except Exception as e:
-        print(f"❌ Error al inicializar: {e}")
-        print("\n💡 Asegúrate de:")
+        print(f"XX Error al inicializar: {e}")
+        print("\n** Asegurate de:")
         print("   1. Tener GROQ_API_KEY en el archivo .env")
         return
     
@@ -60,36 +66,43 @@ def main():
     while True:
         try:
             # Leer entrada del usuario
-            query = input("\n💬 Tu pregunta: ").strip()
+            query = input("\n>> Tu pregunta: ").strip()
             
             if not query:
                 continue
             
             # Comandos especiales
             if query.lower() in ['exit', 'quit', 'salir']:
-                print("\n👋 ¡Hasta luego!")
+                print("\n Hasta luego!")
                 break
             
             if query.lower() == 'help':
                 print_help()
                 continue
             
-            # Procesar pregunta con Tool Calling
-            print("\n🤖 Pensando... (tu asistente decidirá si buscar info o responder directo)")
-            response = llm.chat_with_tools(query)
+            # Procesar pregunta con Tool Calling + MEMORIA
+            print("\n.. Pensando... (Recuperando contexto y decidiendo...)")
+            
+            # Le pasamos al LLM la historia previa para que tenga contexto
+            # (El LLM recibe: System Prompt + Historia + Pregunta Actual)
+            response = llm.chat_with_tools(user_query=query, history=memory.get_messages())
+            
+            # Guardamos lo que ha pasado en la memoria para la próxima vez
+            memory.add_user_message(query)
+            memory.add_assistant_message(response)
             
             # Mostrar respuesta
             print("\n" + "=" * 70)
-            print("📝 Respuesta:")
+            print(" Respuesta:")
             print("-" * 70)
             print(response)
             print("=" * 70)
             
         except KeyboardInterrupt:
-            print("\n\n👋 ¡Hasta luego!")
+            print("\n\n Hasta luego!")
             break
         except Exception as e:
-            print(f"\n❌ Error: {e}")
+            print(f"\nXX Error: {e}")
 
 
 if __name__ == "__main__":

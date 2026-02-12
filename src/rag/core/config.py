@@ -13,8 +13,7 @@ INDEX_DIR = DATA_DIR / "indexes"
 
 # --- Archivos Clave ---
 CORPUS_FILE = PROCESSED_DATA_DIR / "corpus.jsonl"
-SQLITE_DB_PATH = INDEX_DIR / "metadata.db"
-FAISS_INDEX_PATH = INDEX_DIR / "vectors.index"
+SQLITE_DB_PATH = INDEX_DIR / "unified_store.db"
 
 # --- Configuración RAG (MVP) ---
 # Tamaño de los trozos de texto
@@ -40,5 +39,22 @@ LLM_MAX_TOKENS = 512
 # Procesamiento por lotes (batching)
 # Tamaño de batch para generar embeddings (evita saturar RAM)
 BATCH_SIZE = 64
+
+
+# --- Mapeos de Negocio ---
+# Mapeo de nombres comunes a Tickers (mejora la precisión del filtro)
+TICKER_MAP = {
+    "APPLE": "AAPL",
+    "MICROSOFT": "MSFT",
+    "GOOGLE": "GOOGL",
+    "ALPHABET": "GOOGL",
+    "AMAZON": "AMZN",
+    "NVIDIA": "NVDA",
+    "INTEL": "INTC",
+    "CISCO": "CSCO",
+    "ASML": "ASML",
+    "MICRON": "MU",
+    "AMD": "AMD"
+}
 
 

@@ -18,10 +18,10 @@ class EmbeddingModel:
         Args:
             model_name: Nombre del modelo en HuggingFace
         """
-        print(f"🔄 Cargando modelo de embeddings: {model_name}")
+        print(f">> Cargando modelo de embeddings: {model_name}")
         self.model = SentenceTransformer(model_name)
         self.dimension = self.model.get_sentence_embedding_dimension()
-        print(f"✅ Modelo cargado. Dimensión de vector: {self.dimension}")
+        print(f"OK Modelo cargado. Dimensión de vector: {self.dimension}")
     
     def embed_text(self, text: str) -> np.ndarray:
         """
