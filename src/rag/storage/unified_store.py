@@ -146,18 +146,22 @@ class UnifiedDocumentStore:
                query_vector: np.ndarray,
                top_k: int = 10,
                filter_company: Optional[str] = None,
+               filter_year: Optional[int] = None,
+               filter_quarter: Optional[int] = None,
                query_text: Optional[str] = None) -> List[RetrievedChunk]:
         """
         Busca los chunks mas similares al vector de consulta.
 
         1. Calcula distancias L2 contra todos los vectores en cache.
         2. Recupera metadata de SQLite para los top candidatos.
-        3. Aplica filtros (empresa) y boosting (temporal).
+        3. Aplica filtros (empresa, año, trimestre) y boosting.
 
         Args:
             query_vector: Vector de la consulta (dimension,).
             top_k: Numero de resultados finales.
             filter_company: Ticker o nombre para filtrar.
+            filter_year: Año (int).
+            filter_quarter: Trimestre (int).
             query_text: Texto original de la query (para boosting temporal).
 
         Returns:
@@ -173,9 +177,14 @@ class UnifiedDocumentStore:
         diffs = self._embeddings_cache - query_vector
         distances = np.sum(diffs ** 2, axis=1)
 
-        # Candidatos: pedimos mas de los necesarios para luego filtrar
-        fetch_k = top_k * 4 if filter_company else top_k + 5
+        # Candidatos: Si hay filtros estrictos, traemos MUCHOS mas para asegurar que queden suficientes tras filtrar
+        multiplier = 4
+        if filter_company or filter_year:
+            multiplier = 500 # Aumentamos drásticamente para evitar "crowding out" en datasets pequeños/medianos
+            
+        fetch_k = top_k * multiplier
         fetch_k = min(fetch_k, len(distances))
+        
         top_indices = np.argpartition(distances, fetch_k)[:fetch_k]
         top_indices = top_indices[np.argsort(distances[top_indices])]
 
@@ -203,6 +212,31 @@ class UnifiedDocumentStore:
             if target_ticker:
                 chunk_company = str(meta.get("company", "")).upper()
                 if target_ticker not in chunk_company and chunk_company not in target_ticker:
+                    continue
+            
+            # Filtro por Año
+            if filter_year:
+                # Metadata suele ser string o int. Normalizamos a int.
+                try:
+                    meta_year = int(meta.get("year", -1))
+                    if meta_year != filter_year:
+                        continue
+                except (ValueError, TypeError):
+                    continue # Si no tiene año valido y pedimos filtro, lo descartamos
+            
+            # Filtro por Trimestre
+            if filter_quarter:
+                meta_q_val = str(meta.get("quarter", ""))
+                # Extraer digitos: "Q3" -> "3", "3" -> "3"
+                digits = "".join([c for c in meta_q_val if c.isdigit()])
+                
+                if not digits:
+                    continue # No se pudo determinar trimestre -> Descartamos
+
+                try:
+                    if int(digits) != filter_quarter:
+                        continue
+                except ValueError:
                     continue
 
             # Score base (distancia -> similitud)

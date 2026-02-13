@@ -15,7 +15,9 @@ Una vez que tenemos los "ingredientes" (los fragmentos de texto recuperados en l
         2.  El Historial de Chat (memoria, ultimos 10 msgs).
         3.  La Pregunta del Usuario.
         4.  La respuesta del asistente pidiendo tools (primer turno).
-        5.  **El Resultado de la Busqueda** (mensaje con rol `tool`).
+        5.  **El Resultado de la Tool** (mensaje con rol `tool`).
+            *   Puede ser una lista de textos (si usó search).
+            *   Puede ser una predicción JSON (si usó predict).
 3.  **Sintesis**:
     *   El LLM lee la pregunta y el contexto proporcionado.
     *   Genera una respuesta en lenguaje natural que integra los datos encontrados.

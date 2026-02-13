@@ -33,7 +33,7 @@ class Retriever:
         """Retorna la lista de empresas disponibles."""
         return self.store.get_companies()
 
-    def search(self, query: str, top_k: int = TOP_K, filter_company: Optional[str] = None) -> List[RetrievedChunk]:
+    def search(self, query: str, top_k: int = TOP_K, filter_company: Optional[str] = None, filter_year: Optional[int] = None, filter_quarter: Optional[int] = None) -> List[RetrievedChunk]:
         """
         Busca chunks relevantes delegando en el Store Unificado.
 
@@ -41,6 +41,8 @@ class Retriever:
             query: Pregunta del usuario
             top_k: Numero de resultados
             filter_company: Ticker o nombre para filtrar
+            filter_year: Año (int)
+            filter_quarter: Trimestre (int)
 
         Returns:
             Lista de RetrievedChunk ordenados
@@ -53,6 +55,8 @@ class Retriever:
             query_vector=query_vector,
             top_k=top_k,
             filter_company=filter_company,
+            filter_year=filter_year,
+            filter_quarter=filter_quarter,
             query_text=query
         )
 

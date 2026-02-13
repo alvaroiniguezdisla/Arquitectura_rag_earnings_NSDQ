@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Callable, Optional
 import json
 from src.rag.retrieval.retriever import Retriever
+from src.rag.ml.predictor import FinancialPredictor
 from src.rag.core.schema import RetrievedChunk
 
 # --- 1. Definición de Esquemas (La "Carta" del Menú) ---
@@ -46,7 +47,40 @@ LIST_COMPANIES_TOOL_SCHEMA = {
     }
 }
 
-AVAILABLE_TOOLS_SCHEMAS = [SEARCH_EARNINGS_TOOL_SCHEMA, LIST_COMPANIES_TOOL_SCHEMA]
+PREDICT_OUTLOOK_TOOL_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "predict_financial_outlook",
+        "description": (
+            "Usa esta herramienta cuando el usuario pida una PREDICCIÓN, PROYECCIÓN o ANÁLISIS DE SENTIMIENTO sobre el futuro de la empresa. "
+            "Ej: '¿Cuál es el outlook de Apple?', '¿Subirán los ingresos de Microsoft?', 'Dame una predicción basada en el call'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "El tema específico a analizar. Ej: 'revenue growth', 'guidance', 'outlook'."
+                },
+                "company_id": {
+                    "type": "string",
+                    "description": "Ticker de la empresa. OBLIGATORIO. Ej: 'AAPL', 'MSFT'."
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "Año del reporte. Ej: 2020."
+                },
+                "quarter": {
+                    "type": "integer",
+                    "description": "Trimestre. Ej: 3."
+                }
+            },
+            "required": ["query", "company_id", "year", "quarter"]
+        }
+    }
+}
+
+AVAILABLE_TOOLS_SCHEMAS = [SEARCH_EARNINGS_TOOL_SCHEMA, LIST_COMPANIES_TOOL_SCHEMA, PREDICT_OUTLOOK_TOOL_SCHEMA]
 
 
 class ToolManager:
@@ -58,8 +92,9 @@ class ToolManager:
     
     def __init__(self):
         # Inicializar el retriever una sola vez
-        print("   [ToolManager] Conectando con el Retriever...")
+        print("   [ToolManager] Conectando con el Retriever y ML Predictor...")
         self.retriever = Retriever()
+        self.predictor = FinancialPredictor()
         
     def list_available_companies(self) -> str:
         """Delega en el Retriever para ver qué hay."""
@@ -92,6 +127,43 @@ class ToolManager:
             
         return json.dumps(results, ensure_ascii=False)
 
+    def predict_financial_outlook(self, query: str, company_id: str, year: int, quarter: int) -> str:
+        """
+        Ejecuta el pipeline de ML:
+        1. Busca texto relevante (Guidance/Outlook) usando el Retriever.
+        2. Manda ese texto al FinancialPredictor.
+        3. Devuelve resultado estructurado.
+        """
+        print(f"   [Tool usada] Prediciendo Outlook para {company_id} Q{quarter} {year}...")
+        
+        # 1. Recuperar contexto (textos que hablen de guidance, outlook, future)
+        # Forzamos la query para buscar partes predictivas
+        search_query = f"{query} guidance outlook future expectations"
+        chunks = self.retriever.search(search_query, top_k=5, filter_company=company_id, filter_year=year, filter_quarter=quarter)
+        
+        if not chunks:
+            return json.dumps({"error": f"No se encontraron transcripts para {company_id} Q{quarter} {year}."})
+            
+        # Concatenar texto
+        full_text = "\n".join([c.text for c in chunks])
+        
+        # 2. Obtener Revenue (Si el retriever devolviera metadatos ricos podríamos sacarlo de ahí, 
+        # pero por ahora usaremos 0 o un placeholder, ya que el modelo depende más del sentimiento)
+        # TODO: Implementar búsqueda de revenue real o pasarlo como argumento si el LLM lo sabe.
+        current_revenue = 0.0 
+        
+        # 3. Predecir
+        result = self.predictor.predict(full_text, current_revenue=current_revenue, quarter=quarter)
+        
+        # 4. Formatear
+        response = {
+            "source_chunks": len(chunks),
+            "prediction_result": result,
+            "note": "Predicción basada en análisis de sentimiento del transcript recuperado."
+        }
+        
+        return json.dumps(response, ensure_ascii=False)
+
     def execute_tool_call(self, tool_call) -> str:
         """
         Despacha la llamada a la función correcta.
@@ -113,6 +185,13 @@ class ToolManager:
                 )
             elif function_name == "list_available_companies":
                 return self.list_available_companies()
+            elif function_name == "predict_financial_outlook":
+                return self.predict_financial_outlook(
+                    query=function_args.get("query"),
+                    company_id=function_args.get("company_id"),
+                    year=function_args.get("year"),
+                    quarter=function_args.get("quarter")
+                )
             else:
                 return json.dumps({"error": f"Herramienta desconocida: {function_name}"})
         except Exception as e:

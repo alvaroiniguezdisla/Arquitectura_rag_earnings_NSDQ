@@ -7,6 +7,7 @@ Sistema de **Retrieval-Augmented Generation (RAG)** agéntico para analizar tran
 ## Caracteristicas Principales
 
 *   **Agente Autonomo**: El sistema decide cuando consultar la base de datos financiera y cuando responder directamente.
+*   **Machine Learning Integrado**: Modelo `RandomForest` entrenado para predecir si el "Outlook" financiero es positivo/negativo basado en el lenguaje del transcript.
 *   **Recuperacion Optimizada**:
     *   **Metadata Boost**: Prioriza resultados del anno y trimestre mencionados.
     *   **Ticker Mapping**: Traduce nombres de empresas (ej: "Microsoft") a sus simbolos (MSFT).
@@ -50,6 +51,7 @@ python scripts/chat_cli.py
 
 *   **Basica**: "Cuales fueron los ingresos de Apple en el Q4 de 2019?"
 *   **Estrategia**: "Que dijo el CEO de NVIDIA sobre la demanda de chips en 2020?"
+*   **Prediccion (ML)**: "Cual es la perspectiva financiera (outlook) de Apple para el Q3 2020?"
 *   **Meta**: "De que empresas tienes informacion disponible?"
 
 ---
@@ -63,6 +65,7 @@ src/rag/
   storage/       # BD unificada SQLite (texto + metadata + vectores)
   retrieval/     # Motor de busqueda semantica
   generation/    # LLM Groq + Tool Calling
+  ml/            # Predictor financiero (RandomForest + Features)
 ```
 
 ---

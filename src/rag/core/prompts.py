@@ -16,6 +16,7 @@ CHAIN OF THOUGHT (Perform this before answering):
 RESOURCES:
 - `list_available_companies`: Use this if the user asks "what companies do you have?".
 - `search_earnings_calls`: Use this for ANY question about companies, financials, or calls.
+- `predict_financial_outlook`: Use this **ONLY** when the user explicitly asks for a prediction, outlook, or future sentiment (e.g., "What is the outlook for Apple?", "Will revenue go up?"). DO NOT use it for past data.
 
 RULES:
 1. MANDATORY: For search, ALWAYS fill both `query` and `company_id` if possible.

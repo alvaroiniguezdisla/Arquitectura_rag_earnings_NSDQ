@@ -52,6 +52,13 @@ El usuario escribe la pregunta en `chat_cli.py`. El archivo `llm_groq.py` empaqu
         "name": "list_available_companies",
         "description": "Lista empresas disponibles..."
       }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "predict_financial_outlook",
+        "description": "Predice el outlook financiero (Pos/Neg)..."
+      }
     }
   ],
   "tool_choice": "auto"

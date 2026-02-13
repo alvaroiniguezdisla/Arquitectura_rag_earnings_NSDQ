@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 # Agregar el proyecto al path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.rag.generation.llm_groq import GroqLLM
 from src.rag.core.memory import MemoryManager

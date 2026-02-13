@@ -32,6 +32,11 @@ graph TB
         DB[("unified_store.db - SQLite")]
     end
 
+    subgraph ML ["CAPA 6: Machine Learning"]
+        PRED["FinancialPredictor"]
+        MODEL["RandomForest .pkl"]
+    end
+
     CLI -->|"pregunta + historial"| LLM
     MEM -->|"ultimos 10 msgs"| LLM
     PROMPT -->|"personalidad + reglas"| LLM
@@ -39,11 +44,17 @@ graph TB
     LLM -->|"tool_calls JSON"| TM
     TM --> T1
     TM --> T2
+    TM --> T3["predict_financial_outlook"]
+    
     T1 --> RET
     T2 --> RET
+    T3 --> RET
+    T3 --> PRED
+    
     RET --> EMB
     RET --> UDS
     UDS --> DB
+    PRED --> MODEL
 ```
 
 **Que hace cada capa:**
@@ -55,12 +66,13 @@ graph TB
 | 3. Herramientas | `ToolManager` + 2 tools | Enruta las peticiones del LLM al componente correcto |
 | 4. Busqueda | `Retriever` + `EmbeddingModel` | Convierte texto a vectores y coordina la busqueda semantica |
 | 5. Almacenamiento | `UnifiedDocumentStore` + SQLite | Guarda y busca chunks (texto + metadata + vectores) |
+| 6. Machine Learning | `FinancialPredictor` | Analiza sentimiento y genera predicciones de outlook (Pos/Neg) |
 
 ---
 
 ## 2. Flujo de Decision del LLM
 
-Cada pregunta pasa por esta logica. Hay **3 caminos posibles**:
+Cada pregunta pasa por esta logica. Hay **4 caminos posibles**:
 
 ```mermaid
 flowchart TD
@@ -69,6 +81,7 @@ flowchart TD
     B -->|"CAMINO 1<br/>Saludo, opinion, general..."| C["Responde directamente<br/>SIN buscar en BD"]
     B -->|"CAMINO 2<br/>Datos, ingresos, estrategia..."| D["search_earnings_calls"]
     B -->|"CAMINO 3<br/>Que empresas hay?"| E["list_available_companies"]
+    B -->|"CAMINO 4<br/>Prediccion, Outlook futuro..."| M["predict_financial_outlook"]
 
     C --> R["Respuesta al usuario"]
 
@@ -82,6 +95,12 @@ flowchart TD
     J --> K["SELECT DISTINCT companies"]
     K --> L["LLM recibe lista de tickers"]
     L --> R
+
+    M --> P1["ToolManager -> Retriever (get chunks)"]
+    P1 --> P2["FinancialPredictor.predict(text)"]
+    P2 --> P3["RandomForest Inference"]
+    P3 --> P4["JSON: {prediction: 'POSITIVE', confidence: 0.85}"]
+    P4 --> R
 ```
 
 **Ejemplos reales por camino:**
@@ -91,6 +110,7 @@ flowchart TD
 | 1 - Sin tools | "Hola, que tal?" | Responde directo. No toca la BD | 1 |
 | 2 - Search | "Ingresos de Apple en Q3 2020?" | Busca en BD, filtra AAPL, devuelve chunks | 2 |
 | 3 - List | "Que empresas tienes?" | Query SQL simple, devuelve tickers | 2 |
+| 4 - Predict | "Cual es el outlook de Apple para 2020?" | Recupera texto -> ML Model -> Prediccion JSON | 2 |
 
 ---
 
@@ -221,6 +241,47 @@ sequenceDiagram
 
 ---
 
+## 6. Flujo Detallado: Camino 4 — Prediccion Financiera (ML)
+
+Integra RAG clásico con un modelo de clasificación:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant CLI as chat_cli.py
+    participant LLM as Groq API
+    participant TM as ToolManager
+    participant RET as Retriever
+    participant PRED as FinancialPredictor
+
+    U->>CLI: "Cual es el outlook de Apple para Q3 2020?"
+
+    Note over CLI,LLM: === LLAMADA 1 ===
+    CLI->>LLM: messages + tools
+
+    Note over LLM: "Pide una prediccion/perspectiva.<br/>Uso predict_financial_outlook."
+    LLM-->>CLI: tool_calls = predict_financial_outlook(ticker="AAPL", year=2020, quarter=3)
+
+    Note over CLI,TM: === EJECUCION ===
+    CLI->>TM: execute_tool_call()
+    TM->>RET: search(filter="AAPL", year=2020, quarter=3)
+    RET-->>TM: Lista de Chunks (Texto del transcript)
+    
+    TM->>PRED: predict(text_chunks, revenue=None)
+    Note over PRED: 1. Limpieza de texto<br/>2. Extraccion features (Sentiment, Words)<br/>3. Scaling<br/>4. Inference (RandomForest)
+    PRED-->>TM: JSON {prediction: "POSITIVE", probability: 0.85, ...}
+    
+    TM-->>CLI: Resultado de la Tool
+
+    Note over CLI,LLM: === LLAMADA 2 ===
+    CLI->>LLM: mensajes + prediccion JSON
+    LLM-->>CLI: "El modelo predice una perspectiva POSITIVA con 85% de confianza..."
+
+    CLI-->>U: Respuesta final
+```
+
+---
+
 ## 6. La Busqueda Vectorial en Detalle
 
 Cuando `search_earnings_calls` se ejecuta, hay **4 fases internas**:
@@ -275,7 +336,7 @@ El sistema traduce nombres comunes a tickers automaticamente:
 
 ---
 
-## 7. Las 2 Herramientas (Tool Schemas)
+## 7. Las 3 Herramientas (Tool Schemas)
 
 El LLM recibe estas definiciones en **cada llamada**. Son su "menu":
 
@@ -296,6 +357,14 @@ El LLM recibe estas definiciones en **cada llamada**. Son su "menu":
 | **Cuando usarla** | Solo si preguntan "que empresas tienes?" |
 | **Parametros** | Ninguno |
 | **Retorna** | JSON array de tickers: `["AAPL", "AMD", ...]` |
+
+### Tool 3: `predict_financial_outlook` (NUEVA)
+
+| Campo | Valor |
+|-------|-------|
+| **Cuando usarla** | Preguntas sobre futuro, predicciones, outlook, perspectivas |
+| **Parametros** | `company_id` (str), `year` (int), `quarter` (int) |
+| **Retorna** | JSON: `{"prediction": "POSITIVE", "probability": float, "features": {...}}` |
 
 ### Como decide el LLM?
 
@@ -382,6 +451,7 @@ Esto permite **preguntas de seguimiento** sin repetir el contexto.
 | **Interfaz** | CLI (Python input/print) | Rapido de iterar |
 | **Orquestacion** | Python nativo | Control total, sin LangChain/LlamaIndex |
 | **API HTTP** | requests | Llamadas directas a Groq |
+| **Machine Learning** | scikit-learn | RandomForestClassifier, StandardScaler, TF-IDF/TextBlob |
 
 ---
 
