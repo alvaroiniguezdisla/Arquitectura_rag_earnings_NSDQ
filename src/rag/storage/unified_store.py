@@ -89,7 +89,12 @@ class UnifiedDocumentStore:
             vectors.append(np.frombuffer(emb_blob, dtype=np.float32))
 
         self._chunk_ids_cache = ids
-        self._embeddings_cache = np.vstack(vectors)  # shape (N, dim)
+        matrix = np.vstack(vectors)  # shape (N, dim)
+
+        # Normalizar L2 → cosine similarity via dot product
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        norms[norms == 0] = 1  # evitar division por cero
+        self._embeddings_cache = matrix / norms
 
     # ----------------------------------------------------------------
     # Escritura
@@ -155,7 +160,7 @@ class UnifiedDocumentStore:
         """
         Busca los chunks mas similares al vector de consulta.
 
-        1. Calcula distancias L2 contra todos los vectores en cache.
+        1. Calcula cosine similarity (dot product sobre vectores normalizados).
         2. Recupera metadata de SQLite para los top candidatos.
         3. Aplica filtros (empresa, año, trimestre) y boosting.
 
@@ -173,27 +178,31 @@ class UnifiedDocumentStore:
         if self._embeddings_cache is None or len(self._chunk_ids_cache) == 0:
             return []
 
-        # --- 1. Busqueda Vectorial (numpy) ---
+        # --- 1. Busqueda Vectorial: Cosine Similarity (dot product) ---
         query_vector = query_vector.astype(np.float32).reshape(1, -1)
+        # Normalizar query
+        qnorm = np.linalg.norm(query_vector)
+        if qnorm > 0:
+            query_vector = query_vector / qnorm
 
-        # Distancia L2 al cuadrado contra todos los vectores
-        diffs = self._embeddings_cache - query_vector
-        distances = np.sum(diffs ** 2, axis=1)
+        # Dot product = cosine similarity (vectores ya normalizados en _load_vectors_to_memory)
+        scores = (self._embeddings_cache @ query_vector.T).flatten()  # shape (N,)
 
-        # Candidatos: Si hay filtros estrictos, traemos MUCHOS mas para asegurar que queden suficientes tras filtrar
+        # Candidatos: Si hay filtros estrictos, traemos MUCHOS mas
         multiplier = 4
         if filter_company or filter_year:
-            multiplier = 500 # Aumentamos drásticamente para evitar "crowding out" en datasets pequeños/medianos
-            
+            multiplier = 500
+
         fetch_k = top_k * multiplier
-        fetch_k = min(fetch_k, len(distances))
-        
-        top_indices = np.argpartition(distances, fetch_k)[:fetch_k]
-        top_indices = top_indices[np.argsort(distances[top_indices])]
+        fetch_k = min(fetch_k, len(scores))
+
+        # Top por score DESCENDENTE (mayor = mas similar)
+        top_indices = np.argpartition(-scores, fetch_k)[:fetch_k]
+        top_indices = top_indices[np.argsort(-scores[top_indices])]
 
         # --- 2. Recuperar datos de SQLite ---
         candidate_ids = [self._chunk_ids_cache[i] for i in top_indices]
-        candidate_distances = [float(distances[i]) for i in top_indices]
+        candidate_scores = [float(scores[i]) for i in top_indices]
 
         chunks_data = self._get_chunks_by_ids(candidate_ids)
         chunk_map = {c["chunk_id"]: c for c in chunks_data}
@@ -204,7 +213,7 @@ class UnifiedDocumentStore:
             target_ticker = TICKER_MAP.get(filter_company.upper(), filter_company.upper())
 
         results = []
-        for cid, dist in zip(candidate_ids, candidate_distances):
+        for cid, cosine_score in zip(candidate_ids, candidate_scores):
             if cid not in chunk_map:
                 continue
 
@@ -216,50 +225,45 @@ class UnifiedDocumentStore:
                 chunk_company = str(meta.get("company", "")).upper()
                 if target_ticker not in chunk_company and chunk_company not in target_ticker:
                     continue
-            
+
             # Filtro por Año
             if filter_year:
-                # Metadata suele ser string o int. Normalizamos a int.
                 try:
                     meta_year = int(meta.get("year", -1))
                     if meta_year != filter_year:
                         continue
                 except (ValueError, TypeError):
-                    continue # Si no tiene año valido y pedimos filtro, lo descartamos
-            
+                    continue
+
             # Filtro por Trimestre
             if filter_quarter:
                 meta_q_val = str(meta.get("quarter", ""))
-                # Extraer digitos: "Q3" -> "3", "3" -> "3"
                 digits = "".join([c for c in meta_q_val if c.isdigit()])
-                
                 if not digits:
-                    continue # No se pudo determinar trimestre -> Descartamos
-
+                    continue
                 try:
                     if int(digits) != filter_quarter:
                         continue
                 except ValueError:
                     continue
 
-            # Score base (distancia -> similitud)
-            base_score = 1.0 / (1.0 + dist)
+            # Score = cosine similarity (0-1, mayor = mejor)
+            final_score = cosine_score
 
-            # Boosting temporal
-            boost = 0.0
+            # Boosting temporal (ligero)
             if query_text:
                 query_upper = query_text.upper()
                 chunk_year = str(meta.get("year", ""))
                 chunk_q = str(meta.get("quarter", ""))
                 if chunk_year and chunk_year in query_upper:
-                    boost += 0.05
+                    final_score += 0.05
                 if chunk_q and chunk_q in query_upper:
-                    boost += 0.03
+                    final_score += 0.03
 
             results.append(RetrievedChunk(
                 chunk_id=cid,
                 text=row["text"],
-                score=base_score + boost,
+                score=final_score,
                 doc_id=row["doc_id"],
                 metadata=meta
             ))

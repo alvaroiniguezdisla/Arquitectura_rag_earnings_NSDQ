@@ -44,35 +44,41 @@
 
 > **Por qué segundo**: Estas mejoras impactan directamente la **precisión de las respuestas** del sistema. Son el corazón del RAG.
 
-### 2.1 Cambiar distancia L2 por Cosine Similarity
-- [ ] En `unified_store.py`, normalizar los vectores al cargarlos en memoria (`_load_vectors_to_memory`).
-- [ ] Reemplazar el cálculo L2 por dot product (equivalente a cosine con vectores normalizados).
-- [ ] Invertir el ranking: ahora mayor = mejor (en vez de menor distancia = mejor).
-- **Por qué**: `all-MiniLM-L6-v2` está entrenado para cosine similarity. Usar L2 degrada la calidad del ranking.
+### 2.1 Cosine Similarity en vez de L2
+- [x] En `unified_store.py`, normalizar los vectores al cargarlos en memoria (`_load_vectors_to_memory`).
+- [x] Reemplazar el cálculo L2 por dot product (`scores = cache @ query.T`).
+- [x] Invertir el ranking: mayor score = mejor (en vez de menor distancia = mejor).
+- **Por qué**: `all-MiniLM-L6-v2` está entrenado para cosine similarity. Usar L2 degrada el ranking.
 - **Esfuerzo**: 20 minutos.
 
-### 2.2 Chunking semántico (por frases)
-- [ ] Modificar `step2_chunking.py` para respetar límites de oración.
-- [ ] Implementar Recursive Character Splitter: separar por `\n\n` → `\n` → `. ` → ` ` → caracteres.
-- [ ] Subir overlap a 200 caracteres (actualmente 100, solo 12.5% del chunk).
-- [ ] Re-ejecutar `run_full_indexing.py` para reconstruir la BD.
-- **Por qué**: Cortar por caracteres puede partir una oración clave por la mitad, perdiendo significado semántico.
+### 2.2 Chunking recursivo por frases
+- [x] Implementar recursive splitter: separar por `\n\n` → `\n` → `. ` → ` `.
+- [x] Cada chunk es una unidad semántica completa (no corta frases a medias).
+- [x] Subir overlap a 200 caracteres (25% del chunk, estándar recomendado).
+- [x] Re-ejecutar `run_full_indexing.py` para reconstruir la BD.
+- **Por qué**: Cortar por caracteres puede partir una oración clave por la mitad, perdiendo significado.
 - **Esfuerzo**: 1 hora.
 
-### 2.3 Añadir Cross-Encoder Reranking
-- [ ] Instalar `sentence-transformers` (ya está) o un cross-encoder ligero.
-- [ ] Después de la búsqueda vectorial (top 30-50 candidatos), aplicar `cross-encoder/ms-marco-MiniLM-L-6-v2` para reordenar.
-- [ ] Devolver solo los top-k rerankeados al LLM.
-- **Por qué**: Los bi-encoders (MiniLM) son rápidos pero imprecisos. Un cross-encoder compara query-chunk en profundidad y mejora dramáticamente el ranking.
-- **Esfuerzo**: 2-3 horas.
-
-### 2.4 Extraer metadata a columnas SQL
-- [ ] Añadir columnas `company TEXT`, `year INTEGER`, `quarter TEXT` a la tabla `chunks`.
-- [ ] Crear índices SQL: `CREATE INDEX idx_company ON chunks(company)`.
+### 2.3 Metadata como columnas SQL indexadas
+- [ ] Añadir columnas `company TEXT`, `year INTEGER`, `quarter INTEGER` a tabla `chunks`.
+- [ ] Crear índices SQL compuestos para filtrado rápido.
+- [ ] Pre-filtrar en SQL ANTES de buscar vectores (en vez de post-filtrar ×500).
 - [ ] Simplificar `get_companies()` a: `SELECT DISTINCT company FROM chunks`.
-- [ ] Migrar datos existentes o re-indexar.
-- **Por qué**: Evita parsear JSON de cada chunk. `get_companies()` actualmente lee y parsea TODOS los metadata (O(N)), con columnas indexadas es O(1).
+- **Por qué**: Actualmente parsea JSON de cada chunk en cada búsqueda. Con índices SQL es O(1).
 - **Esfuerzo**: 1 hora.
+
+### 2.4 Cross-encoder re-ranking
+- [ ] Crear `src/rag/retrieval/reranker.py` con `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+- [ ] Buscar top-30 con bi-encoder (rápido) → re-rankear con cross-encoder (preciso).
+- [ ] Devolver solo los top-K refinados al LLM.
+- **Por qué**: El patrón "retrieve & re-rank" mejora dramáticamente la precisión. Es estándar en 2025.
+- **Esfuerzo**: 2 horas.
+
+### 2.5 (Opcional) Hybrid Search: BM25 + Dense
+- [ ] Añadir índice BM25 con `rank_bm25` (keyword search).
+- [ ] Reciprocal Rank Fusion para combinar resultados BM25 + cosine.
+- **Por qué**: Caza coincidencias textuales ("revenue Q4") y semánticas ("ingresos del trimestre").
+- **Esfuerzo**: 2 horas.
 
 ---
 

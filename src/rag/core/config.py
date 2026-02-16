@@ -18,8 +18,8 @@ SQLITE_DB_PATH = INDEX_DIR / "unified_store.db"
 # --- Configuración RAG (MVP) ---
 # Tamaño de los trozos de texto
 CHUNK_SIZE = 800  
-# Solape para no cortar frases
-CHUNK_OVERLAP = 100 
+# Solape para no cortar frases (aumentado para recursive chunking)
+CHUNK_OVERLAP = 200 
 # Cuántos trozos recuperar por pregunta
 TOP_K = 12 
 
