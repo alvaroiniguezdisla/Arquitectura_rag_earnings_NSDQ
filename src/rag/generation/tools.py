@@ -3,6 +3,9 @@ import json
 from src.rag.retrieval.retriever import Retriever
 from src.rag.ml.predictor import FinancialPredictor
 from src.rag.core.schema import RetrievedChunk
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 # --- 1. Definición de Esquemas (La "Carta" del Menú) ---
 
@@ -92,13 +95,13 @@ class ToolManager:
     
     def __init__(self):
         # Inicializar el retriever una sola vez
-        print("   [ToolManager] Conectando con el Retriever y ML Predictor...")
+        logger.info("Conectando con el Retriever y ML Predictor...")
         self.retriever = Retriever()
         self.predictor = FinancialPredictor()
         
     def list_available_companies(self) -> str:
         """Delega en el Retriever para ver qué hay."""
-        print("   [Tool usada] Listando empresas...")
+        logger.info("Listando empresas...")
         companies = self.retriever.get_available_companies()
         return json.dumps(companies)
 
@@ -106,7 +109,7 @@ class ToolManager:
         """
         Delega la búsqueda inteligente al Retriever.
         """
-        print(f"   [Tool usada] Buscando: '{query}' (Filtro: {company_id})")
+        logger.info(f"Buscando: '{query}' (Filtro: {company_id})")
         
         # Delegamos toda la lógica compleja (filtros, boost, etc.) al Retriever
         chunks = self.retriever.search(query, top_k=num_results, filter_company=company_id)
@@ -134,7 +137,7 @@ class ToolManager:
         2. Manda ese texto al FinancialPredictor.
         3. Devuelve resultado estructurado.
         """
-        print(f"   [Tool usada] Prediciendo Outlook para {company_id} Q{quarter} {year}...")
+        logger.info(f"Prediciendo Outlook para {company_id} Q{quarter} {year}...")
         
         # 1. Recuperar contexto (textos que hablen de guidance, outlook, future)
         # Forzamos la query para buscar partes predictivas

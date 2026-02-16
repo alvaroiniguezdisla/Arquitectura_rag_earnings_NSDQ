@@ -6,6 +6,9 @@ import pandas as pd
 import numpy as np
 from textblob import TextBlob
 from pathlib import Path
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 # ==========================================
 # Constantes (Deben coincidir con entrenamiento)
@@ -59,13 +62,13 @@ class FinancialPredictor:
     def _load_artifacts(self):
         try:
             if os.path.exists(self.model_path) and os.path.exists(self.scaler_path):
-                print(f"Loading ML model from {self.model_path}...")
+                logger.info(f"Loading ML model from {self.model_path}...")
                 self.model = joblib.load(self.model_path)
                 self.scaler = joblib.load(self.scaler_path)
             else:
-                print(f"WARNING: Model artifacts not found in {self.model_path}")
+                logger.warning(f"Model artifacts not found in {self.model_path}")
         except Exception as e:
-            print(f"ERROR loading ML model: {e}")
+            logger.error(f"Error loading ML model: {e}")
 
     def _extract_features(self, text: str, current_revenue: float, quarter: int) -> pd.DataFrame:
         """

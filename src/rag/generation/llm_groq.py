@@ -8,9 +8,12 @@ from src.rag.core.schema import RetrievedChunk
 from src.rag.core.config import LLM_MODEL_NAME, LLM_TEMPERATURE, LLM_MAX_TOKENS
 from src.rag.core.prompts import FINANCIAL_ASSISTANT_PROMPT
 from src.rag.generation.tools import tool_manager, AVAILABLE_TOOLS_SCHEMAS
+from src.rag.core.logger import get_logger
 
 # Cargar variables de entorno
 load_dotenv()
+
+logger = get_logger(__name__)
 
 
 class GroqLLM:
@@ -87,15 +90,18 @@ class GroqLLM:
             response = requests.post(self.api_url, headers=self.headers, json=payload)
             response.raise_for_status()
             response_data = response.json()
+            logger.debug(f"Groq API response: {json.dumps(response_data, indent=2)}")
             
             response_message = response_data["choices"][0]["message"]
             tool_calls = response_message.get("tool_calls")
             
             # Si el LLM NO quiere usar herramientas, devolvemos su respuesta directa
             if not tool_calls:
+                logger.info("LLM respondió directamente (sin tools)")
                 return response_message["content"]
             
             # --- PASO 2: Ejecutar herramientas ---
+            logger.info(f"LLM solicitó {len(tool_calls)} tool(s)")
             # Añadir la respuesta del asistente (con la intención de llamar tools) al historial
             messages.append(response_message)
             
@@ -124,11 +130,12 @@ class GroqLLM:
             final_response.raise_for_status()
             final_data = final_response.json()
             
+            logger.info("Respuesta final generada con contexto de tools")
             return final_data["choices"][0]["message"]["content"]
             
         except requests.exceptions.RequestException as e:
+            logger.error(f"Error en Groq API: {e}")
             return f"Error en Groq API: {str(e)}"
         except Exception as e:
+            logger.error(f"Error inesperado: {e}")
             return f"Error inesperado: {str(e)}"
-
-

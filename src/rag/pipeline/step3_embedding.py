@@ -3,6 +3,9 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from src.rag.core.config import EMBEDDING_MODEL_NAME
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class EmbeddingModel:
@@ -18,10 +21,10 @@ class EmbeddingModel:
         Args:
             model_name: Nombre del modelo en HuggingFace
         """
-        print(f">> Cargando modelo de embeddings: {model_name}")
+        logger.info(f"Cargando modelo de embeddings: {model_name}")
         self.model = SentenceTransformer(model_name)
         self.dimension = self.model.get_sentence_embedding_dimension()
-        print(f"OK Modelo cargado. Dimensión de vector: {self.dimension}")
+        logger.info(f"Modelo cargado. Dimensión de vector: {self.dimension}")
     
     def embed_text(self, text: str) -> np.ndarray:
         """

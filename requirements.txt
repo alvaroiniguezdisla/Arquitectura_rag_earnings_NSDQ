@@ -23,3 +23,7 @@ textblob>=0.18             # Analisis de Sentimiento
 pandas>=2.0                # Manipulacion de datos (DataFrames)
 matplotlib>=3.7            # Visualizacion (EDA)
 seaborn>=0.12              # Visualizacion estadistica (EDA)
+
+# --- Testing ---
+pytest>=7.0                # Framework de tests
+pytest-mock>=3.10          # Plugin para mocking con pytest

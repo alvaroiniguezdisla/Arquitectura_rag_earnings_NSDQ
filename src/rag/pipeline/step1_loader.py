@@ -4,6 +4,9 @@ from typing import List
 
 from src.rag.core.schema import Document
 from src.rag.core.config import CORPUS_FILE
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_processed_corpus(corpus_path: Path = CORPUS_FILE) -> List[Document]:
@@ -19,10 +22,10 @@ def load_processed_corpus(corpus_path: Path = CORPUS_FILE) -> List[Document]:
     documents = []
     
     if not corpus_path.exists():
-        print(f"XX No se encuentra el archivo: {corpus_path}")
+        logger.error(f"No se encuentra el archivo: {corpus_path}")
         return documents
     
-    print(f">> Leyendo corpus desde: {corpus_path}")
+    logger.info(f"Leyendo corpus desde: {corpus_path}")
     
     with open(corpus_path, "r", encoding="utf-8") as f:
         for line_num, line in enumerate(f, start=1):
@@ -39,8 +42,8 @@ def load_processed_corpus(corpus_path: Path = CORPUS_FILE) -> List[Document]:
                 documents.append(doc)
                 
             except json.JSONDecodeError as e:
-                print(f"XX Error en linea {line_num}: {e}")
+                logger.warning(f"Error en linea {line_num}: {e}")
                 continue
     
-    print(f"OK Cargados {len(documents)} documentos")
+    logger.info(f"Cargados {len(documents)} documentos")
     return documents

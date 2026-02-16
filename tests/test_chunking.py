@@ -1,56 +1,70 @@
 """
-Test para verificar que chunking.py funciona correctamente.
+Tests unitarios — Chunking (step2_chunking.py)
+
+Módulo bajo test:
+    src.rag.pipeline.step2_chunking.chunk_documents()
+
+Qué se valida:
+    - Que un texto largo se divide en chunks del tamaño configurado (CHUNK_SIZE).
+    - Que existe solapamiento (overlap) entre chunks consecutivos para no perder
+      contexto semántico en los bordes.
+    - Que la metadata del Document padre se hereda correctamente a cada Chunk.
+    - Comportamiento con documentos de texto vacío (edge case).
+
+Estrategia:
+    Tests aislados con datos inline (sin leer corpus real).
+    No requiere dependencias externas.
 """
-import sys
-from pathlib import Path
-
-# Agregar el proyecto al path
-sys.path.append(str(Path(__file__).parent.parent))
-
-from src.rag.pipeline.step1_loader import load_processed_corpus
+import pytest
 from src.rag.pipeline.step2_chunking import chunk_documents
+from src.rag.core.schema import Document
 
-if __name__ == "__main__":
-    print("=== Test de Chunking ===\n")
-    
-    # 1. Cargar documentos
-    print("Cargando documentos...")
-    documents = load_processed_corpus()
-    
-    if not documents:
-        print("ERROR: No se cargaron documentos")
-        sys.exit(1)
-    
-    print(f"OK Cargados {len(documents)} documentos\n")
-    
-    # 2. Hacer chunking
-    print("Cortando documentos en chunks...")
-    chunks = chunk_documents(documents)
-    
-    print(f"OK Generados {len(chunks)} chunks\n")
-    
-    # 3. Mostrar estadisticas
-    print(f"Estadisticas:")
-    print(f"   - Total chunks: {len(chunks)}")
-    print(f"   - Promedio chunks por documento: {len(chunks) / len(documents):.1f}")
-    
-    # 4. Ejemplo de chunks
-    print(f"\nEjemplo del primer documento:")
-    first_doc_chunks = [c for c in chunks if c.doc_id == documents[0].doc_id]
-    print(f"   - Documento ID: {documents[0].doc_id}")
-    print(f"   - Numero de chunks: {len(first_doc_chunks)}")
-    print(f"   - Chunk 0 (primeros 200 chars):")
-    print(f"     {first_doc_chunks[0].text[:200]}...")
-    
-    if len(first_doc_chunks) > 1:
-        print(f"\n   - Chunk 1 (primeros 200 chars):")
-        print(f"     {first_doc_chunks[1].text[:200]}...")
-        
-        # Verificar solape
-        overlap_text = first_doc_chunks[0].text[-100:]
-        if overlap_text in first_doc_chunks[1].text[:150]:
-            print(f"\n   OK Solape detectado correctamente entre chunks")
-        else:
-            print(f"\n   WARN No se detecto solape entre chunks")
-    
-    print(f"\nOK Test completado exitosamente")
+
+class TestChunking:
+
+    def test_chunk_documents_splits_correctly(self):
+        """Un texto largo se divide en chunks del tamaño configurado."""
+        # Crear un documento con texto largo (> CHUNK_SIZE = 800 chars)
+        long_text = "palabra " * 200  # ~1600 chars
+        doc = Document(doc_id="TEST_001", text=long_text, metadata={"company": "TEST"})
+
+        chunks = chunk_documents([doc])
+
+        assert len(chunks) > 1, "Debería generar más de 1 chunk para texto largo"
+        for chunk in chunks:
+            # Cada chunk no debería superar CHUNK_SIZE + margen
+            assert len(chunk.text) <= 900, f"Chunk demasiado largo: {len(chunk.text)}"
+
+    def test_chunk_overlap_works(self):
+        """Los chunks consecutivos tienen texto en común (overlap)."""
+        long_text = "palabra " * 200
+        doc = Document(doc_id="TEST_001", text=long_text, metadata={"company": "TEST"})
+
+        chunks = chunk_documents([doc])
+
+        if len(chunks) >= 2:
+            # El final del chunk 0 debería aparecer al inicio del chunk 1
+            tail_of_first = chunks[0].text[-50:]
+            assert tail_of_first in chunks[1].text, \
+                "No se detectó overlap entre chunks consecutivos"
+
+    def test_chunk_metadata_preserved(self):
+        """Los chunks heredan la metadata del documento padre."""
+        metadata = {"company": "AAPL", "year": 2020, "quarter": "Q1"}
+        doc = Document(doc_id="AAPL_2020", text="Texto de prueba " * 200, metadata=metadata)
+
+        chunks = chunk_documents([doc])
+
+        for chunk in chunks:
+            assert chunk.metadata == metadata, "Los chunks deben heredar la metadata"
+            assert chunk.doc_id == "AAPL_2020", "Los chunks deben heredar el doc_id"
+
+    def test_empty_document_produces_single_chunk(self):
+        """Un documento con texto vacío produce un solo chunk (texto corto <= chunk_size)."""
+        doc = Document(doc_id="EMPTY", text="", metadata={})
+
+        chunks = chunk_documents([doc])
+
+        # Texto vacío es <= chunk_size, así que se crea 1 chunk con texto vacío
+        assert len(chunks) == 1
+        assert chunks[0].text == ""

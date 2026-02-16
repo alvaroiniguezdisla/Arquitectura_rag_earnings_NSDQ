@@ -9,6 +9,9 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.rag.generation.llm_groq import GroqLLM
 from src.rag.core.memory import MemoryManager
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def print_banner():
@@ -46,7 +49,7 @@ def main():
     print_banner()
     
     # Inicializar Componentes
-    print(">> Inicializando sistema (LLM + Tools + Memoria)...")
+    logger.info("Inicializando sistema (LLM + Tools + Memoria)...")
     
     try:
         # 1. Creamos la memoria
@@ -55,8 +58,10 @@ def main():
         # 2. Creamos el LLM
         llm = GroqLLM()
         
-        print("OK Sistema listo. Preguntame!\n")
+        logger.info("Sistema listo")
+        print("\nOK Sistema listo. Preguntame!\n")
     except Exception as e:
+        logger.error(f"Error al inicializar: {e}")
         print(f"XX Error al inicializar: {e}")
         print("\n** Asegurate de:")
         print("   1. Tener GROQ_API_KEY en el archivo .env")
@@ -102,6 +107,7 @@ def main():
             print("\n\n Hasta luego!")
             break
         except Exception as e:
+            logger.error(f"Error procesando pregunta: {e}")
             print(f"\nXX Error: {e}")
 
 

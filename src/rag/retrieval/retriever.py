@@ -5,6 +5,9 @@ from src.rag.core.schema import RetrievedChunk
 from src.rag.pipeline.step3_embedding import EmbeddingModel
 from src.rag.storage.unified_store import UnifiedDocumentStore
 from src.rag.core.config import SQLITE_DB_PATH, TOP_K, EMBEDDING_DIMENSION
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Retriever:
@@ -18,7 +21,7 @@ class Retriever:
         db_path: Path = SQLITE_DB_PATH,
         embedding_model: Optional[EmbeddingModel] = None
     ):
-        print("Retriever: Inicializando UnifiedStore...")
+        logger.info("Inicializando UnifiedStore...")
 
         # Store unificado (un solo archivo .db)
         self.store = UnifiedDocumentStore(db_path, dimension=EMBEDDING_DIMENSION)

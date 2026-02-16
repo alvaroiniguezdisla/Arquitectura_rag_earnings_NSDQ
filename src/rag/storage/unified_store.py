@@ -21,6 +21,9 @@ import re
 
 from src.rag.core.schema import Chunk, RetrievedChunk
 from src.rag.core.config import SQLITE_DB_PATH, EMBEDDING_DIMENSION, TICKER_MAP
+from src.rag.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class UnifiedDocumentStore:
@@ -41,10 +44,10 @@ class UnifiedDocumentStore:
         self._init_db()
         self._load_vectors_to_memory()
 
-        print(f">> UnifiedStore inicializado (SQLite-only)")
-        print(f"   - BD: {self.db_path}")
-        print(f"   - Chunks en BD: {self.count()}")
-        print(f"   - Vectores en cache: {len(self._chunk_ids_cache)}")
+        logger.info("UnifiedStore inicializado (SQLite-only)")
+        logger.info(f"  BD: {self.db_path}")
+        logger.info(f"  Chunks en BD: {self.count()}")
+        logger.info(f"  Vectores en cache: {len(self._chunk_ids_cache)}")
 
     # ----------------------------------------------------------------
     # Inicializacion
@@ -136,7 +139,7 @@ class UnifiedDocumentStore:
     def save(self):
         """SQLite hace commit automatico. Este metodo solo recarga la cache."""
         self._load_vectors_to_memory()
-        print(f"OK UnifiedStore guardado. {self.count()} chunks, {len(self._chunk_ids_cache)} vectores.")
+        logger.info(f"UnifiedStore guardado. {self.count()} chunks, {len(self._chunk_ids_cache)} vectores.")
 
     # ----------------------------------------------------------------
     # Busqueda
