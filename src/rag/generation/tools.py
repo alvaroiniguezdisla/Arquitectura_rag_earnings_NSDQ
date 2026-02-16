@@ -200,6 +200,6 @@ class ToolManager:
         except Exception as e:
             return json.dumps({"error": f"Error ejecutando tool: {str(e)}"})
 
-
-# Instancia global del ToolManager
-tool_manager = ToolManager()
+# NOTA: Ya no se crea instancia global.
+# Usa inyección de dependencias: crea ToolManager() donde lo necesites
+# y pásalo como parámetro (ej: GroqLLM(tool_manager=ToolManager())).

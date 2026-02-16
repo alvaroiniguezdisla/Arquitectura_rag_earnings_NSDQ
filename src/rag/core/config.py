@@ -40,6 +40,14 @@ LLM_MAX_TOKENS = 512
 # Tamaño de batch para generar embeddings (evita saturar RAM)
 BATCH_SIZE = 64
 
+# --- Configuración HTTP (resiliencia) ---
+# Tiempo máximo de espera por respuesta (segundos)
+HTTP_TIMEOUT = 30
+# Máximo de reintentos ante errores transitorios (429, 500, 502, 503, 504)
+HTTP_MAX_RETRIES = 4
+# Factor de backoff exponencial: espera 1s, 2s, 4s, 8s entre reintentos
+HTTP_BACKOFF_FACTOR = 1
+
 
 # --- Mapeos de Negocio ---
 # Mapeo de nombres comunes a Tickers (mejora la precisión del filtro)

@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.rag.generation.llm_groq import GroqLLM
+from src.rag.generation.tools import ToolManager
 from src.rag.core.memory import MemoryManager
 from src.rag.core.logger import get_logger
 
@@ -55,8 +56,11 @@ def main():
         # 1. Creamos la memoria
         memory = MemoryManager(limit=10) # Recuerda los ultimos 10 mensajes
         
-        # 2. Creamos el LLM
-        llm = GroqLLM()
+        # 2. Creamos el ToolManager (Retriever + Predictor)
+        tool_mgr = ToolManager()
+        
+        # 3. Creamos el LLM y le pasamos el ToolManager
+        llm = GroqLLM(tool_manager=tool_mgr)
         
         logger.info("Sistema listo")
         print("\nOK Sistema listo. Preguntame!\n")

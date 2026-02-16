@@ -20,8 +20,8 @@
 - **Esfuerzo**: 5 minutos.
 
 ### 1.3 Añadir `timeout` y `retry` a las llamadas HTTP
-- [ ] En `llm_groq.py`, añadir `timeout=30` a ambos `requests.post(...)`.
-- [ ] Implementar retry con backoff exponencial (3 intentos) para errores 429/500/503.
+- [x] En `llm_groq.py`, añadir `timeout=30` a ambos `requests.post(...)`.
+- [x] Implementar retry con backoff exponencial (4 intentos) para errores 429/500/502/503/504 → Session + Retry adapter.
 - **Por qué**: Sin timeout, una llamada puede colgar indefinidamente. Sin retry, un error transitorio de Groq (rate limit) mata la conversación entera.
 - **Esfuerzo**: 30 minutos.
 
@@ -33,8 +33,8 @@
 - **Esfuerzo**: 1-2 horas.
 
 ### 1.5 Eliminar singleton global de `ToolManager`
-- [ ] Eliminar la línea `tool_manager = ToolManager()` del final de `tools.py`.
-- [ ] Mover la instanciación a `chat_cli.py` o a `GroqLLM.__init__()` mediante inyección de dependencias.
+- [x] Eliminar la línea `tool_manager = ToolManager()` del final de `tools.py`.
+- [x] Mover la instanciación a `chat_cli.py` + inyección de dependencias en `GroqLLM.__init__(tool_manager=...)`.
 - **Por qué**: Al importar `tools.py`, se carga automáticamente el Retriever + EmbeddingModel + SQLite + ML Model. Esto impide importar el módulo sin tener la BD real, y rompe cualquier test unitario aislado.
 - **Esfuerzo**: 30 minutos.
 
@@ -143,8 +143,9 @@
 
 | Fase | Tareas | Completadas |
 |------|--------|-------------|
-| 1. Higiene Crítica | 5 | 3/5 |
+| 1. Higiene Crítica | 5 | 5/5 ✅ |
 | 2. Calidad de Búsqueda | 4 | 0/4 |
 | 3. Robustez del Código | 3 | 1/3 |
 | 4. Funcionalidades Avanzadas | 5 | 0/5 |
-| **TOTAL** | **17** | **4/17** |
+| **TOTAL** | **17** | **6/17** |
+

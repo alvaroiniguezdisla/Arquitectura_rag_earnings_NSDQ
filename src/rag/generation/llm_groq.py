@@ -3,11 +3,16 @@ import requests
 import json
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 
 from src.rag.core.schema import RetrievedChunk
-from src.rag.core.config import LLM_MODEL_NAME, LLM_TEMPERATURE, LLM_MAX_TOKENS
+from src.rag.core.config import (
+    LLM_MODEL_NAME, LLM_TEMPERATURE, LLM_MAX_TOKENS,
+    HTTP_TIMEOUT, HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,
+)
 from src.rag.core.prompts import FINANCIAL_ASSISTANT_PROMPT
-from src.rag.generation.tools import tool_manager, AVAILABLE_TOOLS_SCHEMAS
+from src.rag.generation.tools import ToolManager, AVAILABLE_TOOLS_SCHEMAS
 from src.rag.core.logger import get_logger
 
 # Cargar variables de entorno
@@ -22,13 +27,15 @@ class GroqLLM:
     Soporta generación simple (RAG directo) y Tool Calling (agente).
     """
     
-    def __init__(self, api_key: str = None, model: str = None):
+    def __init__(self, api_key: str = None, model: str = None, tool_manager: "ToolManager" = None):
         """
         Inicializa el cliente Groq.
         
         Args:
             api_key: API key de Groq (si no se pasa, se lee de .env)
             model: Modelo a usar (si no se pasa, usa LLM_MODEL_NAME de config.py)
+            tool_manager: Instancia de ToolManager (si no se pasa, se crea una nueva).
+                          Permite inyectar mocks en tests o configuraciones custom.
         """
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
         
@@ -44,6 +51,25 @@ class GroqLLM:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        
+        # --- Tool Manager (inyección de dependencias) ---
+        # Si no te pasan uno, se crea aquí (lazy: solo cuando realmente lo necesitas)
+        self.tool_manager = tool_manager or ToolManager()
+        
+        # --- Session con retry automático ---
+        # Si Groq devuelve 429 (rate limit) o 5xx (error de servidor),
+        # reintenta hasta HTTP_MAX_RETRIES veces con espera exponencial.
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=HTTP_MAX_RETRIES,
+            backoff_factor=HTTP_BACKOFF_FACTOR,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST"],
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
     
     def chat_with_tools(self, user_query: str, history: List[Dict[str, str]] = None) -> str:
         """
@@ -87,7 +113,10 @@ class GroqLLM:
         }
         
         try:
-            response = requests.post(self.api_url, headers=self.headers, json=payload)
+            response = self.session.post(
+                self.api_url, headers=self.headers, json=payload,
+                timeout=HTTP_TIMEOUT
+            )
             response.raise_for_status()
             response_data = response.json()
             logger.debug(f"Groq API response: {json.dumps(response_data, indent=2)}")
@@ -107,7 +136,7 @@ class GroqLLM:
             
             for tool_call in tool_calls:
                 # Ejecutar la función real
-                tool_result_json = tool_manager.execute_tool_call(tool_call)
+                tool_result_json = self.tool_manager.execute_tool_call(tool_call)
                 
                 # Añadir el resultado al historial como mensaje de rol 'tool'
                 messages.append({
@@ -126,7 +155,10 @@ class GroqLLM:
                 "max_tokens": LLM_MAX_TOKENS
             }
             
-            final_response = requests.post(self.api_url, headers=self.headers, json=final_payload)
+            final_response = self.session.post(
+                self.api_url, headers=self.headers, json=final_payload,
+                timeout=HTTP_TIMEOUT
+            )
             final_response.raise_for_status()
             final_data = final_response.json()
             
