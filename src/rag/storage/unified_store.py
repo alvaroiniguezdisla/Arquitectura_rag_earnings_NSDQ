@@ -40,11 +40,13 @@ class UnifiedDocumentStore:
         # Cache en memoria para busqueda vectorial
         self._chunk_ids_cache: List[str] = []
         self._embeddings_cache: Optional[np.ndarray] = None  # shape (N, dimension)
+        self._id_to_index: Dict[str, int] = {}
 
-        self._init_db()
+        self._initialize_db()
+        self._ensure_schema() # Migracion
         self._load_vectors_to_memory()
 
-        logger.info("UnifiedStore inicializado (SQLite-only)")
+        logger.info("UnifiedStore inicializado (SQLite-only + SQL Metadata)")
         logger.info(f"  BD: {self.db_path}")
         logger.info(f"  Chunks en BD: {self.count()}")
         logger.info(f"  Vectores en cache: {len(self._chunk_ids_cache)}")
@@ -53,8 +55,8 @@ class UnifiedDocumentStore:
     # Inicializacion
     # ----------------------------------------------------------------
 
-    def _init_db(self):
-        """Crea la tabla unificada si no existe."""
+    def _initialize_db(self):
+        """Crea la tabla unificada si no existe (Schema v2)."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS chunks (
@@ -63,14 +65,91 @@ class UnifiedDocumentStore:
                     text        TEXT NOT NULL,
                     chunk_index INTEGER NOT NULL,
                     metadata    TEXT,
-                    embedding   BLOB
+                    embedding   BLOB,
+                    company     TEXT,
+                    year        INTEGER,
+                    quarter     INTEGER
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_id ON chunks(doc_id)")
+            # Indices de metadatos movidos a _ensure_schema para soportar migraciones
+
+    def _ensure_schema(self):
+        """Migracion automatica: añade columnas e indices si faltan."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(chunks)")
+            existing_cols = {row[1] for row in cursor.fetchall()}
+            
+            new_cols = {
+                "company": "TEXT",
+                "year": "INTEGER",
+                "quarter": "INTEGER"
+            }
+            
+            migrated = False
+            for col, dtype in new_cols.items():
+                if col not in existing_cols:
+                    logger.info(f"Migrating Schema: Adding column {col}")
+                    cursor.execute(f"ALTER TABLE chunks ADD COLUMN {col} {dtype}")
+                    migrated = True
+
+            # Asegurar indices (siempre, tras asegurar columnas)
+            # Usamos try-except para evitar errores si el driver no soporta IF NOT EXISTS (raro)
+            try:
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_company ON chunks(company)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_year ON chunks(year)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_quarter ON chunks(quarter)")
+            except sqlite3.OperationalError:
+                # Si falla por "already exists" a pesar de IF NOT EXISTS, ignoramos (aunque no deberia)
+                logger.warning("Index creation warning (already exists?)")
+
             conn.commit()
+            
+            if migrated:
+                self._migrate_metadata(conn)
+            else:
+                cursor.execute("SELECT count(*) FROM chunks WHERE company IS NULL")
+                if cursor.fetchone()[0] > 0:
+                    self._migrate_metadata(conn)
+
+    def _migrate_metadata(self, conn):
+        """Extrae metadata del JSON y la guarda en columnas SQL."""
+        logger.info("Starting Metadata Migration (JSON -> SQL Columns)...")
+        cursor = conn.cursor()
+        cursor.execute("SELECT chunk_id, metadata FROM chunks WHERE company IS NULL")
+        
+        batch_size = 5000
+        while True:
+            rows = cursor.fetchmany(batch_size)
+            if not rows:
+                break
+                
+            updates = []
+            for cid, meta_raw in rows:
+                if not meta_raw: continue
+                try:
+                    meta = json.loads(meta_raw)
+                    company = meta.get("company")
+                    year = int(meta.get("year")) if meta.get("year") else None
+                    q_val = meta.get("quarter")
+                    quarter = None
+                    if q_val:
+                        digits = "".join([c for c in str(q_val) if c.isdigit()])
+                        if digits:
+                            quarter = int(digits)
+                    updates.append((company, year, quarter, cid))
+                except:
+                    continue
+            
+            if updates:
+                cursor.executemany("UPDATE chunks SET company=?, year=?, quarter=? WHERE chunk_id=?", updates)
+                conn.commit()
+                
+        logger.info("Metadata Migration Completed.")
 
     def _load_vectors_to_memory(self):
-        """Carga todos los vectores de SQLite a un array numpy en RAM."""
+        """Carga vectores y construye indices."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT chunk_id, embedding FROM chunks WHERE embedding IS NOT NULL"
@@ -80,6 +159,7 @@ class UnifiedDocumentStore:
         if not rows:
             self._chunk_ids_cache = []
             self._embeddings_cache = None
+            self._id_to_index = {}
             return
 
         ids = []
@@ -89,11 +169,11 @@ class UnifiedDocumentStore:
             vectors.append(np.frombuffer(emb_blob, dtype=np.float32))
 
         self._chunk_ids_cache = ids
-        matrix = np.vstack(vectors)  # shape (N, dim)
-
-        # Normalizar L2 → cosine similarity via dot product
+        self._id_to_index = {cid: idx for idx, cid in enumerate(ids)}
+        
+        matrix = np.vstack(vectors)
         norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-        norms[norms == 0] = 1  # evitar division por cero
+        norms[norms == 0] = 1
         self._embeddings_cache = matrix / norms
 
     # ----------------------------------------------------------------
@@ -101,40 +181,50 @@ class UnifiedDocumentStore:
     # ----------------------------------------------------------------
 
     def add_documents(self, chunks: List[Chunk], embeddings: np.ndarray):
-        """
-        Inserta chunks con sus vectores en la BD unificada.
-
-        Args:
-            chunks: Lista de Chunk (texto + metadata).
-            embeddings: Matriz numpy (N, dimension) con los vectores.
-        """
+        """Inserta chunks, vectores y columnas SQL."""
         if len(chunks) != len(embeddings):
-            raise ValueError(f"Desajuste: {len(chunks)} chunks vs {len(embeddings)} vectores")
+            raise ValueError(f"Dim mismatch: {len(chunks)} vs {len(embeddings)}")
 
         embeddings = embeddings.astype(np.float32)
 
-        rows = []
+        data = []
         for chunk, emb in zip(chunks, embeddings):
-            rows.append((
+            meta = chunk.metadata or {}
+            company = meta.get("company")
+            year = int(meta.get("year")) if meta.get("year") else None
+            q_val = meta.get("quarter")
+            quarter = None
+            if q_val:
+                digits = "".join([c for c in str(q_val) if c.isdigit()])
+                if digits:
+                    quarter = int(digits)
+
+            data.append((
                 chunk.chunk_id,
                 chunk.doc_id,
                 chunk.text,
                 chunk.chunk_index,
-                json.dumps(chunk.metadata, ensure_ascii=False),
-                emb.tobytes()  # Vector -> BLOB
+                json.dumps(meta, ensure_ascii=False),
+                emb.tobytes(),
+                company,
+                year,
+                quarter
             ))
 
         with sqlite3.connect(self.db_path) as conn:
             conn.executemany("""
                 INSERT OR REPLACE INTO chunks
-                    (chunk_id, doc_id, text, chunk_index, metadata, embedding)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, rows)
+                    (chunk_id, doc_id, text, chunk_index, metadata, embedding, company, year, quarter)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, data)
             conn.commit()
 
-        # Actualizar cache en memoria (append)
+        # Update cache
+        start_idx = len(self._chunk_ids_cache)
         new_ids = [c.chunk_id for c in chunks]
         self._chunk_ids_cache.extend(new_ids)
+        for i, cid in enumerate(new_ids):
+            self._id_to_index[cid] = start_idx + i
 
         if self._embeddings_cache is None:
             self._embeddings_cache = embeddings
@@ -178,86 +268,97 @@ class UnifiedDocumentStore:
         if self._embeddings_cache is None or len(self._chunk_ids_cache) == 0:
             return []
 
-        # --- 1. Busqueda Vectorial: Cosine Similarity (dot product) ---
+        # --- 1. Pre-filtrado SQL (Opcional) ---
+        filtered_indices = None
+        
+        # Si hay filtros, reducimos el espacio de busqueda ANTES de calcular distancias
+        if filter_company or filter_year or filter_quarter:
+            sql_query = "SELECT chunk_id FROM chunks WHERE 1=1"
+            params = []
+            
+            if filter_company:
+                target_ticker = TICKER_MAP.get(filter_company.upper(), filter_company.upper())
+                sql_query += " AND company LIKE ?"
+                params.append(f"%{target_ticker}%")
+            
+            if filter_year:
+                sql_query += " AND year = ?"
+                params.append(filter_year)
+                
+            if filter_quarter:
+                sql_query += " AND quarter = ?"
+                params.append(filter_quarter)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(sql_query, params)
+                allowed_ids = {row[0] for row in cursor.fetchall()}
+            
+            # Convertir IDs a indices de cache
+            # interseccion rapida usando set
+            filtered_indices = [
+                self._id_to_index[cid] 
+                for cid in allowed_ids 
+                if cid in self._id_to_index
+            ]
+            
+            if not filtered_indices:
+                return [] 
+
+        # --- 2. Busqueda Vectorial ---
         query_vector = query_vector.astype(np.float32).reshape(1, -1)
-        # Normalizar query
         qnorm = np.linalg.norm(query_vector)
         if qnorm > 0:
             query_vector = query_vector / qnorm
 
-        # Dot product = cosine similarity (vectores ya normalizados en _load_vectors_to_memory)
-        scores = (self._embeddings_cache @ query_vector.T).flatten()  # shape (N,)
+        # Si hay filtro, usamos numpy fancy indexing sobre subset
+        if filtered_indices is not None:
+            subset_vectors = self._embeddings_cache[filtered_indices]
+            scores = (subset_vectors @ query_vector.T).flatten()
+            
+            fetch_k = min(top_k, len(scores))
+            # Argpartition sobre scores subset
+            top_local = np.argpartition(-scores, fetch_k)[:fetch_k]
+            top_local = top_local[np.argsort(-scores[top_local])]
+            
+            # Recuperar IDs globales
+            candidate_ids = [self._chunk_ids_cache[filtered_indices[i]] for i in top_local]
+            candidate_scores = [float(scores[i]) for i in top_local]
+            
+        else:
+            # Busqueda global (sin pre-filtro)
+            scores = (self._embeddings_cache @ query_vector.T).flatten()
+            
+            # Candidatos extra si no habia filtro PRE pero queremos filtro POST (doble seguridad)
+            # Aunque con pre-filtro ya no hace falta fetch_k gigante por crowding out
+            fetch_k = min(top_k * 2, len(scores))
+            
+            top_indices = np.argpartition(-scores, fetch_k)[:fetch_k]
+            top_indices = top_indices[np.argsort(-scores[top_indices])]
+            
+            candidate_ids = [self._chunk_ids_cache[i] for i in top_indices]
+            candidate_scores = [float(scores[i]) for i in top_indices]
 
-        # Candidatos: Si hay filtros estrictos, traemos MUCHOS mas
-        multiplier = 4
-        if filter_company or filter_year:
-            multiplier = 500
-
-        fetch_k = top_k * multiplier
-        fetch_k = min(fetch_k, len(scores))
-
-        # Top por score DESCENDENTE (mayor = mas similar)
-        top_indices = np.argpartition(-scores, fetch_k)[:fetch_k]
-        top_indices = top_indices[np.argsort(-scores[top_indices])]
-
-        # --- 2. Recuperar datos de SQLite ---
-        candidate_ids = [self._chunk_ids_cache[i] for i in top_indices]
-        candidate_scores = [float(scores[i]) for i in top_indices]
-
+        # --- 3. Recuperar Metadatos y Post-Procesado ---
         chunks_data = self._get_chunks_by_ids(candidate_ids)
         chunk_map = {c["chunk_id"]: c for c in chunks_data}
 
-        # --- 3. Filtrado y Ranking ---
-        target_ticker = None
-        if filter_company:
-            target_ticker = TICKER_MAP.get(filter_company.upper(), filter_company.upper())
-
         results = []
-        for cid, cosine_score in zip(candidate_ids, candidate_scores):
-            if cid not in chunk_map:
+        for cid, score in zip(candidate_ids, candidate_scores):
+            if cid not in chunk_map: 
                 continue
-
+                
             row = chunk_map[cid]
             meta = json.loads(row["metadata"]) if row["metadata"] else {}
-
-            # Filtro por empresa
-            if target_ticker:
-                chunk_company = str(meta.get("company", "")).upper()
-                if target_ticker not in chunk_company and chunk_company not in target_ticker:
-                    continue
-
-            # Filtro por Año
-            if filter_year:
-                try:
-                    meta_year = int(meta.get("year", -1))
-                    if meta_year != filter_year:
-                        continue
-                except (ValueError, TypeError):
-                    continue
-
-            # Filtro por Trimestre
-            if filter_quarter:
-                meta_q_val = str(meta.get("quarter", ""))
-                digits = "".join([c for c in meta_q_val if c.isdigit()])
-                if not digits:
-                    continue
-                try:
-                    if int(digits) != filter_quarter:
-                        continue
-                except ValueError:
-                    continue
-
-            # Score = cosine similarity (0-1, mayor = mejor)
-            final_score = cosine_score
-
-            # Boosting temporal (ligero)
+            
+            # Boosting temporal
+            final_score = score
             if query_text:
                 query_upper = query_text.upper()
-                chunk_year = str(meta.get("year", ""))
-                chunk_q = str(meta.get("quarter", ""))
-                if chunk_year and chunk_year in query_upper:
+                c_year = str(meta.get("year", ""))
+                c_q = str(meta.get("quarter", ""))
+                if c_year and c_year in query_upper:
                     final_score += 0.05
-                if chunk_q and chunk_q in query_upper:
+                if c_q and c_q in query_upper:
                     final_score += 0.03
 
             results.append(RetrievedChunk(
@@ -290,19 +391,10 @@ class UnifiedDocumentStore:
             return [dict(row) for row in cursor.fetchall()]
 
     def get_companies(self) -> List[str]:
-        """Devuelve la lista de empresas unicas en la BD."""
-        companies = set()
+        """Devuelve la lista de empresas unicas usando SQL directo."""
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT DISTINCT metadata FROM chunks")
-            for (meta_json,) in cursor.fetchall():
-                try:
-                    meta = json.loads(meta_json)
-                    company = meta.get("company")
-                    if company:
-                        companies.add(company)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-        return sorted(companies)
+            cursor = conn.execute("SELECT DISTINCT company FROM chunks WHERE company IS NOT NULL ORDER BY company")
+            return [row[0] for row in cursor.fetchall()]
 
     def count(self) -> int:
         """Numero total de chunks en la BD."""

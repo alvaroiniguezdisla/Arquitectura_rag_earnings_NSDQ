@@ -28,6 +28,11 @@ EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 # Dimensión de los vectores del modelo de embeddings
 EMBEDDING_DIMENSION = 384
 
+# --- Cross-Encoder (Re-ranking) ---
+RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# Cantidad de documentos a recuperar inicialmente (antes de re-rankear)
+RERANK_INITIAL_TOP_K = 30
+
 # Modelo LLM (Groq API)
 # Llama 3.3 70B Versatile - sucesor de llama3-70b-8192 (deprecado por Groq)
 LLM_MODEL_NAME = "llama-3.3-70b-versatile"

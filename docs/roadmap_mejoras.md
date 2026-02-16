@@ -60,17 +60,17 @@
 - **Esfuerzo**: 1 hora.
 
 ### 2.3 Metadata como columnas SQL indexadas
-- [ ] Añadir columnas `company TEXT`, `year INTEGER`, `quarter INTEGER` a tabla `chunks`.
-- [ ] Crear índices SQL compuestos para filtrado rápido.
-- [ ] Pre-filtrar en SQL ANTES de buscar vectores (en vez de post-filtrar ×500).
-- [ ] Simplificar `get_companies()` a: `SELECT DISTINCT company FROM chunks`.
+- [x] Añadir columnas `company TEXT`, `year INTEGER`, `quarter INTEGER` a tabla `chunks`.
+- [x] Crear índices SQL compuestos para filtrado rápido.
+- [x] Pre-filtrar en SQL ANTES de buscar vectores (en vez de post-filtrar ×500).
+- [x] Simplificar `get_companies()` a: `SELECT DISTINCT company FROM chunks`.
 - **Por qué**: Actualmente parsea JSON de cada chunk en cada búsqueda. Con índices SQL es O(1).
 - **Esfuerzo**: 1 hora.
 
 ### 2.4 Cross-encoder re-ranking
-- [ ] Crear `src/rag/retrieval/reranker.py` con `cross-encoder/ms-marco-MiniLM-L-6-v2`.
-- [ ] Buscar top-30 con bi-encoder (rápido) → re-rankear con cross-encoder (preciso).
-- [ ] Devolver solo los top-K refinados al LLM.
+- [x] Crear `src/rag/retrieval/reranker.py` con `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+- [x] Buscar top-30 con bi-encoder (rápido) → re-rankear con cross-encoder (preciso).
+- [x] Devolver solo los top-K refinados al LLM.
 - **Por qué**: El patrón "retrieve & re-rank" mejora dramáticamente la precisión. Es estándar en 2025.
 - **Esfuerzo**: 2 horas.
 
@@ -150,8 +150,8 @@
 | Fase | Tareas | Completadas |
 |------|--------|-------------|
 | 1. Higiene Crítica | 5 | 5/5 ✅ |
-| 2. Calidad de Búsqueda | 4 | 0/4 |
+| 2. Calidad de Búsqueda | 5 | 4/5 |
 | 3. Robustez del Código | 3 | 1/3 |
 | 4. Funcionalidades Avanzadas | 5 | 0/5 |
-| **TOTAL** | **17** | **6/17** |
+| **TOTAL** | **18** | **10/18** |
 
