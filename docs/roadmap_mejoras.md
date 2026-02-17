@@ -87,7 +87,7 @@
 > **Por qué tercero**: Hace el proyecto mantenible y testeable a largo plazo.
 
 ### 3.1 Añadir `__init__.py` a todos los subpaquetes
-- [ ] Crear `__init__.py` vacíos en: `core/`, `pipeline/`, `storage/`, `retrieval/`, `generation/`, `ml/`.
+- [x] Crear `__init__.py` vacíos en: `core/`, `pipeline/`, `storage/`, `retrieval/`, `generation/`, `ml/`.
 - **Por qué**: Define los paquetes explícitamente. Permite definir imports públicos y es buena práctica estándar.
 - **Esfuerzo**: 10 minutos.
 
@@ -99,49 +99,66 @@
 - **Esfuerzo**: 2 horas.
 
 ### 3.3 Implementar revenue real en el Predictor
-- [ ] Opción A: Extraer revenue del texto del transcript usando regex/NER.
+- [x] Opción A: Extraer revenue del texto del transcript usando regex/NER. -- Implementado regex robusto.
 - [ ] Opción B: Añadir un dataset de revenue por empresa/trimestre como CSV.
-- [ ] Eliminar el `current_revenue = 0.0` hardcodeado en `tools.py` línea 153.
+- [x] Eliminar el `current_revenue = 0.0` hardcodeado en `tools.py` línea 153.
 - **Por qué**: El feature `revenue` del modelo ML siempre es 0, lo que reduce la precisión del predictor.
 - **Esfuerzo**: 2 horas.
 
 ---
 
-## Fase 4: Funcionalidades Avanzadas (🟢 P2)
+## Fase 4: Plan Maestro de Optimización ML (🏆 The "Time Capsule" Strategy)
 
-> **Por qué cuarto**: Son mejoras de calidad que elevan el proyecto de MVP a producción.
+> **Objetivo**: Crear un modelo de Inteligencia Artificial que sea matemáticamente válido para predecir el futuro (2020) basándose solo en el pasado (2016-2019), sin descargar datos externos.
 
-### 4.1 Hybrid Search (BM25 + Vectorial)
-- [ ] Instalar `rank_bm25`.
-- [ ] Implementar búsqueda BM25 sobre los textos de chunks.
-- [ ] Fusionar scores: `final_score = α * cosine_score + (1-α) * bm25_score` con `α=0.7`.
-- **Por qué**: La búsqueda vectorial captura significado pero pierde keywords exactos. BM25 captura coincidencias exactas. Combinarlos cubre ambos flancos.
-- **Esfuerzo**: 3 horas.
+### 4.1 Ingeniería de Features (El Cimiento Matemático)
+**El Problema**: El modelo actual usa "Dólares Absolutos" ($). En 2016, ganar $50B era un récord. En 2020, es poco. Esto confunde al modelo.
+**La Solución**: Enseñar al modelo a pensar en **% de Crecimiento**, que es una métrica universal y atemporal.
 
-### 4.2 Streaming de respuestas
-- [ ] Añadir parámetro `stream=True` a los payloads de Groq.
-- [ ] Implementar lectura de Server-Sent Events (SSE) y mostrar token por token.
-- **Por qué**: El usuario ve la respuesta progresivamente en vez de esperar varios segundos. Mejora la UX drásticamente.
-- **Esfuerzo**: 2 horas.
+- [ ] **Paso 1: Calcular Growth en Training Data** (`train_ml_model.py`)
+    - [ ] Ordenar datos por fecha.
+    - [ ] Calcular `revenue_growth_qoq` = `(Revenue_Q - Revenue_Q-1) / Revenue_Q-1`.
+    - [ ] Calcular `revenue_growth_yoy` = `(Revenue_Q - Revenue_Q-4) / Revenue_Q-4`.
+- [ ] **Paso 2: Re-entrenar Scaler**
+    - [ ] Eliminar la columna `revenue` ($) de las features de entrada.
+    - [ ] Añadir `revenue_growth_qoq` y `revenue_growth_yoy` al `StandardScaler`.
+- [ ] **Paso 3: Adaptar Predictor** (`predictor.py`)
+    - [ ] Modificar `predict()` para que calcule el crecimiento al vuelo (necesitará el revenue del trimestre anterior como input o lo inferirá del texto).
 
-### 4.3 Evaluación con RAGAS
-- [ ] Instalar `ragas` o `deepeval`.
-- [ ] Crear un dataset de evaluación con preguntas + respuestas esperadas.
-- [ ] Medir métricas estándar: Faithfulness, Answer Relevancy, Context Precision.
-- **Por qué**: Da métricas objetivas y comparables para medir el impacto de cada mejora.
-- **Esfuerzo**: 3 horas.
+### 4.2 Cerebro Financiero: FinBERT (El Salto de Calidad)
+**El Problema**: `TextBlob` (actual) es un diccionario simple. Si dices "loss narrowed" (pérdida se reduce = BUENO), él lee "loss" (MALO).
+**La Solución**: Usar `ProsusAI/finbert`, una red neuronal pre-entrenada con millones de noticias financieras.
 
-### 4.4 Observabilidad (Tracing)
-- [ ] Integrar LangFuse o Weights & Biases.
-- [ ] Instrumentar: latencia por componente, tools usadas, chunks recuperados, tokens consumidos.
-- **Por qué**: Permite diagnosticar problemas en producción y optimizar costes de API.
-- **Esfuerzo**: 4 horas.
+- [ ] **Paso 1: Integración**
+    - [ ] Instalar `transformers` y `torch`.
+    - [ ] Crear clase `SentimentAnalyzer` en `src/rag/ml/sentiment.py` que cargue FinBERT.
+- [ ] **Paso 2: Sustitución**
+    - [ ] En `predictor.py`, reemplazar `TextBlob.sentiment` por `SentimentAnalyzer.predict()`.
+    - [ ] Usar las probabilidades (Positive/Negative/Neutral) como features numéricas nuevas.
 
-### 4.5 Guardar tool calls en la memoria
-- [ ] Extender `MemoryManager` para almacenar mensajes de tipo `tool`.
-- [ ] Incluir los resultados de tools en el historial para que el LLM pueda referenciar búsquedas anteriores.
-- **Por qué**: Actualmente el LLM pierde el contexto de búsquedas pasadas entre turnos.
-- **Esfuerzo**: 1 hora.
+### 4.3 Explicabilidad (White Box AI)
+**El Problema**: El usuario no se fía de una "Caja Negra" que solo dice "POSITIVE".
+**La Solución**: Mostrar el "Por qué".
+
+- [ ] **Paso 1: Extracción de Frases Clave**
+    - [ ] Cuando FinBERT detecte un sentimiento fuerte, guardar la frase exacta (ej: *"record quebrant earnings"*).
+- [ ] **Paso 2: Respuesta Estructurada**
+    - [ ] Modificar el JSON de respuesta de la tool para incluir: `{"prediction": "POSITIVE", "reasoning": "Detectado sentimiento muy positivo en la frase 'highest revenue in history'"}`.
+
+### 4.4 Validación "Regreso al Futuro" (La Demo Final)
+**El Problema**: ¿Cómo demostramos que funciona sin esperar a 2027?
+**La Solución**: Usar 2020 como nuestro "Banco de Pruebas".
+
+- [ ] **Paso 1: Script de Validación**
+    - [ ] Crear `scripts/ml/validate_time_travel.py`.
+    - [ ] Cargar modelo entrenado (2016-2019).
+    - [ ] Leer PDFs reales de 2020.
+    - [ ] Comparar Predicción IA vs. Dato Real (que ya conocemos).
+    - [ ] Generar reporte de precisión: "El modelo acertó 3 de 4 trimestres de Apple en 2020".
+
+### 4.5 Extras (Si sobra tiempo)
+- [ ] **Hybrid Search**: Implementar BM25 para mejorar la búsqueda de nombres propios.
+- [ ] **Metadata SQL**: Extraer y guardar métricas clave en BD para consultas rápidas.
 
 ---
 
@@ -151,7 +168,7 @@
 |------|--------|-------------|
 | 1. Higiene Crítica | 5 | 5/5 ✅ |
 | 2. Calidad de Búsqueda | 5 | 4/5 |
-| 3. Robustez del Código | 3 | 1/3 |
+| 3. Robustez del Código | 3 | 3/3 ✅ |
 | 4. Funcionalidades Avanzadas | 5 | 0/5 |
-| **TOTAL** | **18** | **10/18** |
+| **TOTAL** | **18** | **12/18** |
 

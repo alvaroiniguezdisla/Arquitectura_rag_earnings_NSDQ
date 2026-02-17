@@ -109,6 +109,52 @@ class FinancialPredictor:
         }
         
         return pd.DataFrame([features], columns=FEATURES_ORDER)
+    def extract_revenue_from_text(self, text: str) -> Optional[float]:
+        """
+        Intenta extraer el revenue del texto usando expresiones regulares.
+        Retorna el valor en BILLIONS (miles de millones).
+        """
+        if not text:
+            return None
+            
+        # Normalizar texto para facilitar regex
+        text_lower = text.lower()
+        
+        # Patrones comunes en earnings calls
+        # Grupo 1 capturará el número
+        patterns_billion = [
+            r"revenue\s+(?:of|was|reached|totaled|is|were)\s+\$?([\d\.]+)\s+billion",
+            r"sales\s+(?:of|was|reached|totaled|is|were)\s+\$?([\d\.]+)\s+billion",
+            r"\$?([\d\.]+)\s+billion\s+in\s+revenue",
+            r"\$?([\d\.]+)\s+billion\s+in\s+sales"
+        ]
+        
+        for p in patterns_billion:
+            match = re.search(p, text_lower)
+            if match:
+                try:
+                    val = float(match.group(1))
+                    return val
+                except ValueError:
+                    continue
+
+        # Regex para millones (convertir a billones)
+        patterns_million = [
+            r"revenue\s+(?:of|was|reached|totaled|is|were)\s+\$?([\d\.]+)\s+million",
+            r"sales\s+(?:of|was|reached|totaled|is|were)\s+\$?([\d\.]+)\s+million",
+             r"\$?([\d\.]+)\s+million\s+in\s+revenue"
+        ]
+        
+        for p in patterns_million:
+            match = re.search(p, text_lower)
+            if match:
+                try:
+                    val = float(match.group(1))
+                    return val / 1000.0  # Convertir million -> billion
+                except ValueError:
+                    continue
+                    
+        return None
 
     def predict(self, text: str, current_revenue: float = 0.0, quarter: int = 1) -> dict:
         """
@@ -116,7 +162,7 @@ class FinancialPredictor:
         
         Args:
             text: El texto del transcript (o un resumen representativo).
-            current_revenue: Revenue actual (en billions). Si no se tiene, usar 0 o media.
+            current_revenue: Revenue actual (en billions). Si es 0, se intenta extraer del texto.
             quarter: Trimestre fiscal (1-4).
             
         Returns:
@@ -124,6 +170,15 @@ class FinancialPredictor:
         """
         if not self.model or not self.scaler:
             return {"error": "Model not loaded"}
+            
+        # Auto-extracción de revenue si no se provee
+        extracted_revenue = None
+        if current_revenue == 0.0:
+            extracted_rev = self.extract_revenue_from_text(text)
+            if extracted_rev is not None:
+                current_revenue = extracted_rev
+                extracted_revenue = extracted_rev
+                # logger.debug(f"Revenue extraído del texto: ${current_revenue}B")
             
         # Extraer features
         X_df = self._extract_features(text, current_revenue, quarter)
@@ -138,6 +193,12 @@ class FinancialPredictor:
         class_label = "POSITIVE" if prediction_class == 1 else "NEGATIVE"
         confidence = prediction_proba[1] if prediction_class == 1 else prediction_proba[0]
         
+        factors = X_df.to_dict(orient='records')[0]
+        if extracted_revenue:
+             factors["revenue_source"] = "extracted_from_text"
+        else:
+             factors["revenue_source"] = "manual_or_default"
+        
         result = {
             "prediction": class_label,
             "confidence": round(float(confidence), 2),
@@ -145,7 +206,7 @@ class FinancialPredictor:
                 "negative": round(float(prediction_proba[0]), 2),
                 "positive": round(float(prediction_proba[1]), 2)
             },
-            "key_factors": X_df.to_dict(orient='records')[0]
+            "key_factors": factors
         }
         
         return result

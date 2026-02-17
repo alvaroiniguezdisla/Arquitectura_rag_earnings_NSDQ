@@ -150,9 +150,8 @@ class ToolManager:
         # Concatenar texto
         full_text = "\n".join([c.text for c in chunks])
         
-        # 2. Obtener Revenue (Si el retriever devolviera metadatos ricos podríamos sacarlo de ahí, 
-        # pero por ahora usaremos 0 o un placeholder, ya que el modelo depende más del sentimiento)
-        # TODO: Implementar búsqueda de revenue real o pasarlo como argumento si el LLM lo sabe.
+        # 2. Obtener Revenue
+        # El predictor intentará extraerlo del texto si current_revenue es 0.0
         current_revenue = 0.0 
         
         # 3. Predecir
